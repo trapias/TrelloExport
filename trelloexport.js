@@ -685,7 +685,7 @@ function TrelloExportOptions() {
     }
 
     var availableTwigTemplatesOptions = [];
-    for (var t = 0; t < availableTwigTemplates.length; t++) {
+    for (var t = 0; t < availableTwigTemplatesOptions.length; t++) {
         availableTwigTemplatesOptions.push('<option value="' + availableTwigTemplates[t].url + '">' + availableTwigTemplates[t].description + '</option>');
     }
 
