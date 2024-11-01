@@ -251,8 +251,10 @@
     - update jquery
     - fix OPML export of comments due date, issue #91
     - improvements for issue #29
+* Whatsnew for v. 1.9.74:
+    - fixed injection to adapt to modified Trello website
 */
-var VERSION = '1.9.73';
+var VERSION = '1.9.74';
 
 // TWIG templates definition
 var availableTwigTemplates = [
@@ -745,7 +747,7 @@ function TrelloExportOptions() {
     if (localStorage.TrelloExportCustomFields)
         customFieldsON = true;
 
-    var sDialog = '<span class="half"><h1>TrelloExport ' + VERSION + '</h1></span><span class="half blog-link"><h3><a target="_blank" href="https://github.com/trapias/TrelloExport/wiki">Help</a>&nbsp;&nbsp;&nbsp;<a target="_blank" href="https://trapias.github.io/blog/">Read the Blog!</a></h3></span><table id="optionslist">' +
+    var sDialog = '<span class="half"><h1>TrelloExport ' + VERSION + '</h1></span><span class="half blog-link"><h3><a target="_blank" href="https://github.com/trapias/TrelloExport/wiki">Help</a>&nbsp;&nbsp;&nbsp;<a target="_blank" href="https://trelloexport.trapias.it/blog/">Read the Blog!</a></h3></span><table id="optionslist">' +
         '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Choose the type of file you want to export">Export to:</span></td><td><select id="exportmode"><option value="XLSX">Excel</option><option value="MD">Markdown</option><option value="HTML">HTML</option><option value="OPML">OPML</option><option value="CSV">CSV</option></select></td></tr>' +
         '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Check all the kinds of items you want to export">Export:</span></td><td><input type="checkbox" id="exportArchived" title="Export archived items">Archived items ' +
         '<input type="checkbox" id="comments" title="Export comments">Comments<br/><input type="checkbox" id="checklists" title="Export checklists">Checklists <input type="checkbox" id="attachments" title="Export attachments">Attachments  <input type="checkbox" id="customfields" ' + (customFieldsON ? 'checked' : '') + ' title="Export Custom Fields">Custom Fields</td></tr>' +
@@ -1135,7 +1137,7 @@ function TrelloExportOptions() {
 
 
     }
-    return; // close dialog
+    return false; // close dialog
 }
 
 function setColumnHeadings(asrowsMode) {

@@ -1,6 +1,6 @@
 {
     "name": "TrelloExport",
-    "version": "1.9.73",
+    "version": "1.9.74",
     "manifest_version": 3,
     "description": "TrelloExport (Trello Export) allows to export Trello boards to Excel spreadsheets, HTML with Twig templates, Markdown, OPML and CSV.",
     "icons": { "128": "icons/trelloexport_128.png" },
