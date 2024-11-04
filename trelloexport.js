@@ -253,8 +253,10 @@
     - improvements for issue #29
 * Whatsnew for v. 1.9.74:
     - fixed injection to adapt to modified Trello website
+* Whatsnew for v. 1.9.75:
+    - actually fixed injection to adapt to modified Trello website
 */
-var VERSION = '1.9.74';
+var VERSION = '1.9.75';
 
 // TWIG templates definition
 var availableTwigTemplates = [
