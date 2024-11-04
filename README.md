@@ -20,6 +20,9 @@ If you cannot find a solution, or would like some new feature to be implemented,
 
 ## Release history
 
+### Version 1.9.75
+- fixed injection to adapt to modified Trello website
+
 ### Version 1.9.73:
 - update jquery
 - fix OPML export of comments due date, issue #91
