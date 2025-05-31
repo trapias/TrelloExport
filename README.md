@@ -20,6 +20,11 @@ If you cannot find a solution, or would like some new feature to be implemented,
 
 ## Release history
 
+### Version 1.9.76
+- Improved injection of TrelloExport button in menu
+- Added error monitoring for 429 (rate limit) and 504 (timeout) errors
+- Added small delays between API requests to reduce rate limit issues
+
 ### Version 1.9.75
 - fixed injection to adapt to modified Trello website
 

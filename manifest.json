@@ -1,6 +1,6 @@
 {
     "name": "TrelloExport",
-    "version": "1.9.75",
+    "version": "1.9.76",
     "manifest_version": 3,
     "description": "TrelloExport (Trello Export) allows to export Trello boards to Excel spreadsheets, HTML with Twig templates, Markdown, OPML and CSV.",
     "icons": { "128": "icons/trelloexport_128.png" },
@@ -20,14 +20,15 @@
             "lib/linq.min.js",
             "lib/jquery.growl.js",
             "lib/zebra/zebra_dialog.js",
-            "lib/injectTrelloExporter.js",
             "lib/datediff.js",
             "lib/showdown.min.js",
             "lib/bootstrap-multiselect/bootstrap-multiselect.js",
             "lib/tooltip.js",
             "lib/twig.min.js",
             "lib/tingle.min.js",
-            "trelloexport.js"
+            "lib/simpleRetry.js",
+            "trelloexport.js",
+            "lib/injectTrelloExporter.js"
         ]
     }],
     "web_accessible_resources": [ {
