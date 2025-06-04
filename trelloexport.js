@@ -259,8 +259,10 @@
     - Improved injection of TrelloExport button in menu
     - Added error monitoring for 429 (rate limit) and 504 (timeout) errors
     - Added small delays between API requests to reduce rate limit issues
+* Whatsnew for v. 1.9.77:
+    - fix UI for HTML export
 */
-var VERSION = '1.9.76';
+var VERSION = '1.9.77';
 
 // TWIG templates definition
 var availableTwigTemplates = [
@@ -764,7 +766,7 @@ function TrelloExportOptions() {
         '</tr>' +
         '<tr id="ckHTMLCardInfoRow" style="display:none"><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Set options for the target HTML">Options:</span></td><td><input type="checkbox" checked id="ckHTMLCardInfo" title="Export card info"> Export card info (created, createdby) <br/><input type="checkbox" checked id="chkHTMLInlineImages" title="Show attachment images"> Show attachment images' + '</td></tr>' +
         '<tr id="renderingOptions" style="display:none"><td><span>Rendering Options:</span></td><td>Stylesheet: <input id="trelloExportCss" type="text" name="css" value="' + theCSS + '"> ' +
-        'Template set:<br><input type="text" id="templateSetURL" placeholder="Insert URL or leave blank" title="Template-set URL - leave blank to use local templates" value="' + templateSetURL + '">Template:<br> <select id="twigTemplate" name="twigTemplate">' +
+        '<br>Template set:<input type="text" id="templateSetURL" placeholder="Insert URL or leave blank" title="Template-set URL - leave blank to use local templates" value="' + templateSetURL + '"><br>Template: <select id="twigTemplate" name="twigTemplate">' +
         availableTwigTemplatesOptions.join(',') +
         '</select></td></tr>' +
         '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Set the List name string used to recognize your completed lists. See https://trapias.github.io/blog/trelloexport-1-9-13">Done lists name:</span></td><td><input type="text" size="4" name="setnameListDone" id="setnameListDone" value="' + nameListDone + '"  placeholder="Set string or leave empty"></td></tr>' +

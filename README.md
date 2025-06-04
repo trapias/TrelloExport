@@ -20,6 +20,10 @@ If you cannot find a solution, or would like some new feature to be implemented,
 
 ## Release history
 
+### Version 1.9.77
+- Improved injection of TrelloExport button in menu for more languages
+
+
 ### Version 1.9.76
 - Improved injection of TrelloExport button in menu
 - Added error monitoring for 429 (rate limit) and 504 (timeout) errors
