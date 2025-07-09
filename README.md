@@ -19,6 +19,8 @@ If you cannot find a solution, or would like some new feature to be implemented,
 <a href="https://www.buymeacoffee.com/trapias" target="_blank"><img src="https://bmc-cdn.nyc3.digitaloceanspaces.com/BMC-button-images/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: auto !important;width: auto !important;" ></a>
 
 ## Release history
+Version 1.9.78
+- Injection of TrelloExport button for Chinese (Traditional) language
 
 ### Version 1.9.77
 - Improved injection of TrelloExport button in menu for more languages
