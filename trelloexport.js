@@ -261,8 +261,13 @@
     - Added small delays between API requests to reduce rate limit issues
 * Whatsnew for v. 1.9.77:
     - fix UI for HTML export
+* Whatsnew for v. 1.9.78:
+    - Injection of TrelloExport button for Chinese (Traditional) language
+* Whatsnew for v. 1.9.79:
+    - async data loading
+    - fix exporting cards in a list when requesting to export checklists
 */
-var VERSION = '1.9.77';
+var VERSION = '1.9.79';
 
 // TWIG templates definition
 var availableTwigTemplates = [
@@ -506,7 +511,7 @@ if (!String.prototype.endsWith) {
     };
   }
   
-function getCommentCardActions(boardID, idCard) {
+async function getCommentCardActions(boardID, idCard) {
     for (var n = 0; n < actionsCommentCard.length; n++) {
         if (actionsCommentCard[n].card === idCard) {
             var query = Enumerable.From(actionsCommentCard[n].data)
@@ -522,41 +527,46 @@ function getCommentCardActions(boardID, idCard) {
             return query.length > 0 ? query : false;
         }
     }
-    $.ajax({
-        headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-        url: 'https://trello.com/1/card/' + idCard + '/actions?filter=commentCard,copyCommentCard&limit=' + dataLimit,
-        // url:'https://trello.com/1/boards/' + boardID + '/actions?filter=commentCard,copyCommentCard&limit=' + dataLimit,
-        dataType: 'json',
-        async: false,
-        success: function(actionsData) {
-            var a = {
-                card: idCard,
-                data: actionsData,
-            };
-            actionsCommentCard.push(a);
-        }
-    });
-    var selectedActions = null;
-    for (var i = 0; i < actionsCommentCard.length; i++) {
-        if (actionsCommentCard[i].card === idCard) {
-            selectedActions = actionsCommentCard[i].data;
-            break;
-        }
-    }
-    var query2 = Enumerable.From(selectedActions)
-        .Where(function(x) {
-            if (x.data.card) {
-                return x.data.card.id == idCard;
+    
+    try {
+        const actionsData = await $.ajax({
+            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
+            url: 'https://trello.com/1/card/' + idCard + '/actions?filter=commentCard,copyCommentCard&limit=' + dataLimit,
+            // url:'https://trello.com/1/boards/' + boardID + '/actions?filter=commentCard,copyCommentCard&limit=' + dataLimit,
+            dataType: 'json'
+        });
+        
+        var a = {
+            card: idCard,
+            data: actionsData,
+        };
+        actionsCommentCard.push(a);
+        
+        var selectedActions = null;
+        for (var i = 0; i < actionsCommentCard.length; i++) {
+            if (actionsCommentCard[i].card === idCard) {
+                selectedActions = actionsCommentCard[i].data;
+                break;
             }
-        })
-        .OrderByDescending(function(x) {
-            return x.date;
-        })
-        .ToArray();
-    return query2.length > 0 ? query2 : false;
+        }
+        var query2 = Enumerable.From(selectedActions)
+            .Where(function(x) {
+                if (x.data.card) {
+                    return x.data.card.id == idCard;
+                }
+            })
+            .OrderByDescending(function(x) {
+                return x.date;
+            })
+            .ToArray();
+        return query2.length > 0 ? query2 : false;
+    } catch (error) {
+        console.error('Error fetching comment card actions:', error);
+        return false;
+    }
 }
 
-function getCreateCardAction(boardID, idCard) {
+async function getCreateCardAction(boardID, idCard) {
     for (var n = 0; n < actionsCreateCard.length; n++) {
         if (actionsCreateCard[n].board === boardID) {
             var query = Enumerable.From(actionsCreateCard[n].data)
@@ -569,38 +579,43 @@ function getCreateCardAction(boardID, idCard) {
             return query.length > 0 ? query[0] : false;
         }
     }
-    $.ajax({
-        headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-        url: 'https://trello.com/1/boards/' + boardID + '/actions?filter=createCard&limit=' + dataLimit,
-        dataType: 'json',
-        async: false,
-        success: function(actionsData) {
-            var a = {
-                board: boardID,
-                data: actionsData,
-            };
-            actionsCreateCard.push(a);
-        }
-    });
-    var selectedActions = null;
-    // get the right actions for board
-    for (var i = 0; i < actionsCreateCard.length; i++) {
-        if (actionsCreateCard[i].board === boardID) {
-            selectedActions = actionsCreateCard[i].data;
-            break;
-        }
-    }
-    var query2 = Enumerable.From(selectedActions)
-        .Where(function(x) {
-            if (x.data.card) {
-                return x.data.card.id == idCard;
+    
+    try {
+        const actionsData = await $.ajax({
+            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
+            url: 'https://trello.com/1/boards/' + boardID + '/actions?filter=createCard&limit=' + dataLimit,
+            dataType: 'json'
+        });
+        
+        var a = {
+            board: boardID,
+            data: actionsData,
+        };
+        actionsCreateCard.push(a);
+        
+        var selectedActions = null;
+        // get the right actions for board
+        for (var i = 0; i < actionsCreateCard.length; i++) {
+            if (actionsCreateCard[i].board === boardID) {
+                selectedActions = actionsCreateCard[i].data;
+                break;
             }
-        })
-        .ToArray();
-    return query2.length > 0 ? query2[0] : false;
+        }
+        var query2 = Enumerable.From(selectedActions)
+            .Where(function(x) {
+                if (x.data.card) {
+                    return x.data.card.id == idCard;
+                }
+            })
+            .ToArray();
+        return query2.length > 0 ? query2[0] : false;
+    } catch (error) {
+        console.error('Error fetching create card action:', error);
+        return false;
+    }
 }
 
-function getMoveCardAction(boardID, idCard, nameList) {
+async function getMoveCardAction(boardID, idCard, nameList) {
     //console.log('getMoveCardAction ' + idCard + ' to list ' + nameList);
     for (var n = 0; n < actionsMoveCard.length; n++) {
         if (actionsMoveCard[n].board === boardID) {
@@ -620,38 +635,43 @@ function getMoveCardAction(boardID, idCard, nameList) {
             return query.length > 0 ? query[0] : false;
         }
     }
-    $.ajax({
-        headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-        url: 'https://trello.com/1/boards/' + boardID + '/actions?filter=updateCard&limit=' + dataLimit,
-        dataType: 'json',
-        async: false,
-        success: function(actionsData) {
-            var a = {
-                board: boardID,
-                data: actionsData,
-            };
-            actionsMoveCard.push(a);
-        }
-    });
-    var selectedActions = null;
-    // get the right actions for board
-    for (var i = 0; i < actionsMoveCard.length; i++) {
-        if (actionsMoveCard[i].board === boardID) {
-            selectedActions = actionsMoveCard[i].data;
-            break;
-        }
-    }
-    var query2 = Enumerable.From(selectedActions)
-        .Where(function(x) {
-            if (x.data.card && x.data.listAfter) {
-                return x.data.card.id == idCard && x.data.listAfter.name == nameList;
+    
+    try {
+        const actionsData = await $.ajax({
+            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
+            url: 'https://trello.com/1/boards/' + boardID + '/actions?filter=updateCard&limit=' + dataLimit,
+            dataType: 'json'
+        });
+        
+        var a = {
+            board: boardID,
+            data: actionsData,
+        };
+        actionsMoveCard.push(a);
+        
+        var selectedActions = null;
+        // get the right actions for board
+        for (var i = 0; i < actionsMoveCard.length; i++) {
+            if (actionsMoveCard[i].board === boardID) {
+                selectedActions = actionsMoveCard[i].data;
+                break;
             }
-        })
-        .OrderByDescending(function(x) {
-            return x.date;
-        })
-        .ToArray();
-    return query2.length > 0 ? query2[0] : false;
+        }
+        var query2 = Enumerable.From(selectedActions)
+            .Where(function(x) {
+                if (x.data.card && x.data.listAfter) {
+                    return x.data.card.id == idCard && x.data.listAfter.name == nameList;
+                }
+            })
+            .OrderByDescending(function(x) {
+                return x.date;
+            })
+            .ToArray();
+        return query2.length > 0 ? query2[0] : false;
+    } catch (error) {
+        console.error('Error fetching move card action:', error);
+        return false;
+    }
 }
 
 function searchupdateCheckItemStateOnCardAction(checkitemid, actions) {
@@ -676,25 +696,32 @@ function searchupdateCheckItemStateOnCardAction(checkitemid, actions) {
     return completedObject;
 }
 
-function TrelloExportOptions() {
+async function TrelloExportOptions() {
+    try {
+        // Check if extension context is still valid
+        if (!chrome.runtime?.id) {
+            console.error('[TrelloExport] Extension context invalidated');
+            alert('TrelloExport extension has been updated or reloaded. Please refresh the page and try again.');
+            return;
+        }
 
-    exportboards = []; // reset
-    exportlists = [];
-    exportcards = [];
-    filterListsNames = [];
-    nProcessedBoards = 0;
-    nProcessedLists = 0;
-    nProcessedCards = 0;
-    idBoard = document.location.pathname.split('/')[2];
+        exportboards = []; // reset
+        exportlists = [];
+        exportcards = [];
+        filterListsNames = [];
+        nProcessedBoards = 0;
+        nProcessedLists = 0;
+        nProcessedCards = 0;
+        idBoard = document.location.pathname.split('/')[2];
 
-    var columnHeadings = [];
-    customFields = []; // reset
-    columnHeadings = setColumnHeadings(0);
+        var columnHeadings = [];
+        customFields = []; // reset
+        columnHeadings = await setColumnHeadings(0);
 
-    // https://github.com/davidstutz/bootstrap-multiselect
-    var options = [];
-    for (var x = 0; x < columnHeadings.length; x++) {
-        var isSelected = "selected";
+        // https://github.com/davidstutz/bootstrap-multiselect
+        var options = [];
+        for (var x = 0; x < columnHeadings.length; x++) {
+            var isSelected = "selected";
         // 1.9.54 saved selected columns
         if (localStorage.TrelloExportSelectedColumns) {
             isSelected = '';
@@ -705,31 +732,31 @@ function TrelloExportOptions() {
         }
         var o = '<option value="' + columnHeadings[x] + '" ' + (isSelected === 'selected' ? 'selected="selected"' : '') + '>' + columnHeadings[x] + '</option>';
         options.push(o);
-    }
+        }
 
-    var theCSS = chrome.runtime.getURL('/templates/default.css') || 'https://trapias.github.io/assets/TrelloExport/default.css';
-    if (localStorage.TrelloExportCSS && !localStorage.TrelloExportCSS.startsWith('chrome'))
+        var theCSS = chrome.runtime.getURL('/templates/default.css') || 'https://trapias.github.io/assets/TrelloExport/default.css';
+        if (localStorage.TrelloExportCSS && !localStorage.TrelloExportCSS.startsWith('chrome'))
         theCSS = localStorage.TrelloExportCSS;
 
-    var selectedMode = 'XLSX';
-    if (localStorage.TrelloExportMode)
+        var selectedMode = 'XLSX';
+        if (localStorage.TrelloExportMode)
         selectedMode = localStorage.TrelloExportMode;
 
-    // nameListDone
-    if (localStorage.TrelloExportListDone)
+        // nameListDone
+        if (localStorage.TrelloExportListDone)
         nameListDone = localStorage.TrelloExportListDone;
 
-    var selectedType = 'board';
-    if (localStorage.TrelloExportType)
+        var selectedType = 'board';
+        if (localStorage.TrelloExportType)
         selectedType = localStorage.TrelloExportType;
 
-    var twigTemplate = chrome.runtime.getURL('/templates/html.twig');
-    if (localStorage.TrelloExportTwigTemplate)
+        var twigTemplate = chrome.runtime.getURL('/templates/html.twig');
+        if (localStorage.TrelloExportTwigTemplate)
         twigTemplate = localStorage.TrelloExportTwigTemplate;
 
-    // load templates from URL, e.g. https://trapias.github.io/assets/TrelloExport/templates.json
-    var templateSetURL = '';
-    if (localStorage.TrelloExportTwigTemplatesURL) {
+        // load templates from URL, e.g. https://trapias.github.io/assets/TrelloExport/templates.json
+        var templateSetURL = '';
+        if (localStorage.TrelloExportTwigTemplatesURL) {
         templateSetURL = localStorage.TrelloExportTwigTemplatesURL;
 
         loadTemplateSetFromURL(templateSetURL).then(function(tplset) {
@@ -744,18 +771,18 @@ function TrelloExportOptions() {
         }, function(err) {
             console.error('ERROR: ' + err);
         });
-    }
+        }
 
-    var availableTwigTemplatesOptions = [];
-    for (var t = 0; t < availableTwigTemplates.length; t++) {
+        var availableTwigTemplatesOptions = [];
+        for (var t = 0; t < availableTwigTemplates.length; t++) {
         availableTwigTemplatesOptions.push('<option value="' + availableTwigTemplates[t].url + '">' + availableTwigTemplates[t].description + '</option>');
-    }
+        }
 
-    var customFieldsON = false;
-    if (localStorage.TrelloExportCustomFields)
+        var customFieldsON = false;
+        if (localStorage.TrelloExportCustomFields)
         customFieldsON = true;
 
-    var sDialog = '<span class="half"><h1>TrelloExport ' + VERSION + '</h1></span><span class="half blog-link"><h3><a target="_blank" href="https://github.com/trapias/TrelloExport/wiki">Help</a>&nbsp;&nbsp;&nbsp;<a target="_blank" href="https://trelloexport.trapias.it/blog/">Read the Blog!</a></h3></span><table id="optionslist">' +
+        var sDialog = '<span class="half"><h1>TrelloExport ' + VERSION + '</h1></span><span class="half blog-link"><h3><a target="_blank" href="https://github.com/trapias/TrelloExport/wiki">Help</a>&nbsp;&nbsp;&nbsp;<a target="_blank" href="https://trelloexport.trapias.it/blog/">Read the Blog!</a></h3></span><table id="optionslist">' +
         '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Choose the type of file you want to export">Export to:</span></td><td><select id="exportmode"><option value="XLSX">Excel</option><option value="MD">Markdown</option><option value="HTML">HTML</option><option value="OPML">OPML</option><option value="CSV">CSV</option></select></td></tr>' +
         '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Check all the kinds of items you want to export">Export:</span></td><td><input type="checkbox" id="exportArchived" title="Export archived items">Archived items ' +
         '<input type="checkbox" id="comments" title="Export comments">Comments<br/><input type="checkbox" id="checklists" title="Export checklists">Checklists <input type="checkbox" id="attachments" title="Export attachments">Attachments  <input type="checkbox" id="customfields" ' + (customFieldsON ? 'checked' : '') + ' title="Export Custom Fields">Custom Fields</td></tr>' +
@@ -777,7 +804,7 @@ function TrelloExportOptions() {
         '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Choose what data to export">Type of export:</span></td><td><select id="exporttype"><option value="board">Current Board</option><option value="list">Select Lists in current Board</option><option value="boards">Multiple Boards</option><option value="cards">Select cards in a list</option></select></td></tr>' +
         '</table>';
 
-    var modal = new tingle.modal({
+        var modal = new tingle.modal({
         footer: true,
         stickyFooter: true,
         closeMethods: ['overlay', 'button', 'escape'],
@@ -793,15 +820,15 @@ function TrelloExportOptions() {
             return true; // close the modal
             // return false; // nothing happens
         }
-    });
+        });
 
-    modal.setContent(sDialog);
-    modal.setFooterContent('<span class="sponsor"><a target="_new" href="https://bridge24.com/trello/?afmc=1w">Need interactive charts or custom reports for your cards? Try Bridge24! <img src="https://bridge24.com/wp-content/uploads/2017/12/bridge24-logo-header_dark-grey_2x.png" /></a></span>');
-    modal.addFooterBtn('Close', 'tingle-btn tingle-btn--default tingle-btn--pull-right', function() {
+        modal.setContent(sDialog);
+        modal.setFooterContent('<span class="sponsor"><a target="_new" href="https://bridge24.com/trello/?afmc=1w">Need interactive charts or custom reports for your cards? Try Bridge24! <img src="https://bridge24.com/wp-content/uploads/2017/12/bridge24-logo-header_dark-grey_2x.png" /></a></span>');
+        modal.addFooterBtn('Close', 'tingle-btn tingle-btn--default tingle-btn--pull-right', function() {
         modal.close();
-    });
+        });
 
-    modal.addFooterBtn('Export', 'tingle-btn tingle-btn--trelloexport tingle-btn--pull-right', function() {
+        modal.addFooterBtn('Export', 'tingle-btn tingle-btn--trelloexport tingle-btn--pull-right', function() {
         var mode = $('#exportmode').val();
         localStorage.TrelloExportMode = mode;
         nameListDone = $('#setnameListDone').val();
@@ -923,11 +950,11 @@ function TrelloExportOptions() {
             }
         }, 500);
         modal.close();
-    });
+        });
 
-    modal.open();
+        modal.open();
 
-    function initializeModal() {
+        function initializeModal() {
 
         $('[data-toggle="tooltip"]').tooltip();
         $('#selectedColumns').multiselect({
@@ -1001,7 +1028,7 @@ function TrelloExportOptions() {
             });
         });
 
-        $('#exporttype').on('change', function() {
+        $('#exporttype').on('change', async function() {
             $('#advancedOptions').remove();
             var sexporttype = $('#exporttype').val();
             localStorage.TrelloExportType = sexporttype;
@@ -1011,7 +1038,7 @@ function TrelloExportOptions() {
             switch (sexporttype) {
                 case 'list':
                     // get a list of all lists in board and let user choose which to export
-                    sSelect = getalllistsinboard();
+                    sSelect = await getalllistsinboard();
                     $('#optionslist').append('<tr><td>Select one or more Lists</td><td><select multiple id="choosenlist">' + sSelect + '</select></td></tr>');
                     break;
                 case 'board':
@@ -1027,16 +1054,16 @@ function TrelloExportOptions() {
                     break;
                 case 'cards':
                     // get a list of all lists in board and let user choose which to export
-                    sSelect = getalllistsinboard();
+                    sSelect = await getalllistsinboard();
                     $('#optionslist').append('<tr><td>Select one List</td><td><select id="choosenSinglelist"><option value="">Select a list</option>' + sSelect + '</select></td></tr>');
 
-                    $('#choosenSinglelist').on('change', function() {
+                    $('#choosenSinglelist').on('change', async function() {
                         $('#choosenCards').parent().parent().remove();
                         var selectedList = $('#choosenSinglelist').val();
                         exportlists = [];
                         exportlists.push(selectedList);
                         // get cards in list
-                        sSelect = getallcardsinlist(selectedList);
+                        sSelect = await getallcardsinlist(selectedList);
                         $('#optionslist').append('<tr><td>Select one or more cards</td><td><select multiple id="choosenCards">' + sSelect + '</select></td></tr>');
                     });
                     break;
@@ -1124,22 +1151,25 @@ function TrelloExportOptions() {
             }
         });
 
-        $('input[name=asrows]').change(function() {
-            setColumnHeadings(this.value);
+        $('input[name=asrows]').change(async function() {
+            await setColumnHeadings(this.value);
         });
 
         if (localStorage.TrelloExportCustomFields) {
             $('#customfields').attr('checked', true);
-            setColumnHeadings($('input[name=asrows]:checked').val());
+            // Use setTimeout to defer the await call
+            setTimeout(async () => {
+                await setColumnHeadings($('input[name=asrows]:checked').val());
+            }, 0);
         }
 
-        $('#customfields').click(function() {
+        $('#customfields').click(async function() {
             var isON = $('#customfields').is(':checked');
             if (isON)
                 localStorage.TrelloExportCustomFields = 'on';
             else
                 localStorage.TrelloExportCustomFields = '';
-            setColumnHeadings($('input[name=asrows]:checked').val());
+            await setColumnHeadings($('input[name=asrows]:checked').val());
         });
 
         if (selectedType) {
@@ -1151,13 +1181,20 @@ function TrelloExportOptions() {
             $('#twigTemplate').val(twigTemplate);
             $('#twigTemplate').trigger('change');
         }
+    } // end initializeModal
 
-
+    } catch (error) {
+        console.error('[TrelloExport] Error in TrelloExportOptions:', error);
+        $.growl.error({
+            title: "TrelloExport Error",
+            message: "An error occurred: " + error.message,
+            fixed: true
+        });
     }
     return false; // close dialog
 }
 
-function setColumnHeadings(asrowsMode) {
+async function setColumnHeadings(asrowsMode) {
     switch (Number(asrowsMode)) {
         case 1: // checklist item
             columnHeadings = [
@@ -1203,7 +1240,7 @@ function setColumnHeadings(asrowsMode) {
 
     if (bExportCustomFields) {
         customFields = [];
-        loadCustomFields(columnHeadings);
+        await loadCustomFields(columnHeadings);
     }
     var ColumnOptions = [];
 
@@ -1241,44 +1278,48 @@ function setColumnHeadings(asrowsMode) {
 }
 
 // append custom fields to column headings
-function loadCustomFields(columnHeadings) {
-    $.ajax({
-        headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-        url: 'https://trello.com/1/boards/' + idBoard + '/customfields',
-        dataType: 'json',
-        async: false,
-        success: function(pdata) {
-            if (pdata !== undefined) {
-                for (var f = 0; f < pdata.length; f++) {
-                    // console.log(JSON.stringify(pdata[f]));
-                    customFields.push(pdata[f]);
-                    columnHeadings.push(pdata[f].name);
-                }
+async function loadCustomFields(columnHeadings) {
+    try {
+        const pdata = await $.ajax({
+            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
+            url: 'https://trello.com/1/boards/' + idBoard + '/customfields',
+            dataType: 'json'
+        });
+        
+        if (pdata !== undefined) {
+            for (var f = 0; f < pdata.length; f++) {
+                // console.log(JSON.stringify(pdata[f]));
+                customFields.push(pdata[f]);
+                columnHeadings.push(pdata[f].name);
             }
         }
-    });
+    } catch (error) {
+        console.error('Error loading custom fields:', error);
+    }
 }
 
-function loadCardCustomFields(cardID) {
+async function loadCardCustomFields(cardID) {
     var rc = [];
 
-    $.ajax({
-        headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-        url: 'https://trello.com/1/cards/' + cardID + '/customFieldItems',
-        dataType: 'json',
-        async: false,
-        success: function(pdata) {
-            pdata.forEach(function(dv) {
-                var theValue = dv.value;
-                if (!theValue)
-                    theValue = dv.idValue;
+    try {
+        const pdata = await $.ajax({
+            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
+            url: 'https://trello.com/1/cards/' + cardID + '/customFieldItems',
+            dataType: 'json'
+        });
+        
+        pdata.forEach(function(dv) {
+            var theValue = dv.value;
+            if (!theValue)
+                theValue = dv.idValue;
 
-                var oVal = lookupCustomDataValue(dv.idCustomField, theValue);
-                rc.push({ colName: oVal.name, value: oVal.value });
-            });
-            return rc;
-        }
-    });
+            var oVal = lookupCustomDataValue(dv.idCustomField, theValue);
+            rc.push({ colName: oVal.name, value: oVal.value });
+        });
+    } catch (error) {
+        console.error('Error loading card custom fields:', error);
+    }
+
     return rc;
 }
 
@@ -1329,114 +1370,100 @@ function resetOptions() {
     $('#customfields').attr('disabled', false);
 }
 
-function getalllistsinboard() {
+async function getalllistsinboard() {
     var apiURL = "https://trello.com/1/boards/" + idBoard + "?lists=all&cards=none";
     var sHtml = "";
     var bexportArchived = $('#exportArchived').is(':checked');
 
-    $.ajax({
+    try {
+        const data = await $.ajax({
             headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: apiURL,
-            async: false,
-        })
-        .done(function(data) {
-            // console.log('DATA:' + JSON.stringify(data));
-            $.each(data.lists, function(key, list) {
-
-                if (!bexportArchived && list.closed)
-                    return;
-
-                var list_id = list.id;
-                var listName = list.name;
-                if (!list.closed) {
-                    sHtml += '<option value="' + list_id + '">' + listName + '</option>';
-                } else {
-                    sHtml += '<option value="' + list_id + '">' + listName + ' [Archived]</option>';
-                }
-            });
-        })
-        .fail(function(jqXHR, textStatus, errorThrown) {
-            console.error("getalllistsinboard error: " + jqXHR.statusText + ' ' + jqXHR.status + ': ' + jqXHR.responseText);
-            $.growl.error({
-                title: "TrelloExport",
-                message: jqXHR.statusText + ' ' + jqXHR.status + ': ' + jqXHR.responseText,
-                fixed: true
-            });
-        })
-        .always(function() {
-            // console.log("complete");
+            url: apiURL
         });
+            // console.log('DATA:' + JSON.stringify(data));
+        // console.log('DATA:' + JSON.stringify(data));
+        $.each(data.lists, function(key, list) {
+
+            if (!bexportArchived && list.closed)
+                return;
+
+            var list_id = list.id;
+            var listName = list.name;
+            if (!list.closed) {
+                sHtml += '<option value="' + list_id + '">' + listName + '</option>';
+            } else {
+                sHtml += '<option value="' + list_id + '">' + listName + ' [Archived]</option>';
+            }
+        });
+    } catch (error) {
+        console.error("getalllistsinboard error: ", error);
+        $.growl.error({
+            title: "TrelloExport",
+            message: error.statusText + ' ' + error.status + ': ' + error.responseText,
+            fixed: true
+        });
+    }
 
     return sHtml;
 }
 
 
-function getorganizations() {
+async function getorganizations() {
     var apiURL = "https://trello.com/1/members/me/organizations";
     var orgID = []; //[{ id: null, displayName: 'Private Boards' }];
 
-    $.ajax({
+    try {
+        const data = await $.ajax({
             headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: apiURL,
-            async: false,
-        })
-        .done(function(data) {
-            $.each(data, function(key, org) {
-                orgID.push({ id: org.id, displayName: org.displayName });
-            });
-            orgID.push({ id: null, displayName: 'Personal Boards' });
-
-        })
-        .fail(function(jqXHR, textStatus, errorThrown) {
-            console.error("getorganizations: " + textStatus);
-            $.growl.error({
-                title: "TrelloExport",
-                message: jqXHR.statusText + ' ' + jqXHR.status + ': ' + jqXHR.responseText,
-                fixed: true
-            });
-        })
-        .always(function() {
-            // console.log("complete");
+            url: apiURL
         });
+        $.each(data, function(key, org) {
+            orgID.push({ id: org.id, displayName: org.displayName });
+        });
+        orgID.push({ id: null, displayName: 'Personal Boards' });
+
+    } catch (error) {
+        console.error("getorganizations: ", error);
+        $.growl.error({
+            title: "TrelloExport",
+            message: error.statusText + ' ' + error.status + ': ' + error.responseText,
+            fixed: true
+        });
+    }
 
     return orgID;
 }
 
-function getorganizationid() {
+async function getorganizationid() {
     var apiURL = "https://trello.com/1/boards/" + idBoard + '?lists=none';
     var orgID = "";
 
-    $.ajax({
+    try {
+        const data = await $.ajax({
             headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: apiURL,
-            async: false,
-        })
-        .done(function(data) {
-            //console.log('DATA:' + JSON.stringify(data));
-            orgID = data.idOrganization;
-        })
-        .fail(function(jqXHR, textStatus, errorThrown) {
-            console.error("getorganizationid: " + textStatus);
-            $.growl.error({
-                title: "TrelloExport",
-                message: jqXHR.statusText + ' ' + jqXHR.status + ': ' + jqXHR.responseText,
-                fixed: true
-            });
-        })
-        .always(function() {
-            // console.log("complete");
+            url: apiURL
         });
+        //console.log('DATA:' + JSON.stringify(data));
+        orgID = data.idOrganization;
+    } catch (error) {
+        console.error("getorganizationid: ", error);
+        $.growl.error({
+            title: "TrelloExport",
+            message: error.statusText + ' ' + error.status + ': ' + error.responseText,
+            fixed: true
+        });
+    }
 
     return orgID;
 }
 
-function getallboards() {
+async function getallboards() {
 
-    var allIDs = getorganizations();
+    var allIDs = await getorganizations();
     var sHtml = "";
     var tmpIDs = [];
 
-    allIDs.forEach(function(oid) {
+    for (const oid of allIDs) {
 
         // GET /1/organizations/[idOrg or name]/boards
         var apiURL = "https://trello.com/1/organizations/" + oid.id + "/boards?lists=none&fields=name,idOrganization,closed";
@@ -1446,46 +1473,39 @@ function getallboards() {
             apiURL = "https://trello.com/1/members/me/boards?lists=none&fields=name,idOrganization,closed";
         }
 
-        $.ajax({
+        try {
+            const data = await $.ajax({
                 headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-                url: apiURL,
-                async: false,
-            })
-            .done(function(data) {
-
-                var bexportArchived = $('#exportArchived').is(':checked');
-                for (var i = 0; i < data.length; i++) {
-
-                    if (!bexportArchived && data[i].closed)
-                        continue;
-
-                    var board_id = data[i].id;
-                    if ($.inArray(board_id, tmpIDs) > -1)
-                        continue;
-
-                    tmpIDs.push(board_id);
-                    var boardName = data[i].name;
-                    if (!data[i].closed) {
-                        sHtml += '<option value="' + board_id + '">[' + oid.displayName + '] ' + boardName + '</option>';
-                    } else {
-                        sHtml += '<option value="' + board_id + '">[' + oid.displayName + '] ' + boardName + ' [Archived]</option>';
-                    }
-                }
-            })
-            .fail(function(jqXHR, textStatus, errorThrown) {
-                console.log("getallboards error: " + jqXHR.statusText + ' ' + jqXHR.status + ': ' + jqXHR.responseText);
-                $.growl.error({
-                    title: "TrelloExport",
-                    message: jqXHR.statusText + ' ' + jqXHR.status + ': ' + jqXHR.responseText,
-                    fixed: true
-                });
-            })
-            .always(function() {
-                // console.log("complete");
+                url: apiURL
             });
 
+            var bexportArchived = $('#exportArchived').is(':checked');
+            for (var i = 0; i < data.length; i++) {
 
-    });
+                if (!bexportArchived && data[i].closed)
+                    continue;
+
+                var board_id = data[i].id;
+                if ($.inArray(board_id, tmpIDs) > -1)
+                    continue;
+
+                tmpIDs.push(board_id);
+                var boardName = data[i].name;
+                if (!data[i].closed) {
+                    sHtml += '<option value="' + board_id + '">[' + oid.displayName + '] ' + boardName + '</option>';
+                } else {
+                    sHtml += '<option value="' + board_id + '">[' + oid.displayName + '] ' + boardName + ' [Archived]</option>';
+                }
+            }
+        } catch (error) {
+            console.log("getallboards error: ", error);
+            $.growl.error({
+                title: "TrelloExport",
+                message: error.statusText + ' ' + error.status + ': ' + error.responseText,
+                fixed: true
+            });
+        }
+    }
 
     // var orgID = getorganizationid();
 
@@ -1493,73 +1513,64 @@ function getallboards() {
     return sHtml;
 }
 
-function getBoardData(id) {
+async function getBoardData(id) {
 
     var apiURL = "https://trello.com/1/boards/" + id + "?fields=name,idOrganization";
     var bData = "";
 
-    $.ajax({
+    try {
+        const data = await $.ajax({
             headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: apiURL,
-            async: false,
-        })
-        .done(function(data) {
-            bData = data;
-        })
-        .fail(function(jqXHR, textStatus, errorThrown) {
-            console.error("getBoardData error: " + textStatus);
-            $.growl.error({
-                title: "TrelloExport",
-                message: jqXHR.statusText + ' ' + jqXHR.status + ': ' + jqXHR.responseText,
-                fixed: true
-            });
-        })
-        .always(function() {
-            // console.log("complete");
+            url: apiURL
         });
+        //console.log('DATA:' + JSON.stringify(data));
+        bData = data;
+    } catch (error) {
+        console.error("getBoardData error: ", error);
+        $.growl.error({
+            title: "TrelloExport",
+            message: error.statusText + ' ' + error.status + ': ' + error.responseText,
+            fixed: true
+        });
+    }
 
     return bData;
 }
 
-function getallcardsinlist(listid) {
+async function getallcardsinlist(listid) {
     // GET /1/lists/[idList]/cards?fields=idShort
     var apiURL = "https://trello.com/1/lists/" + listid + "/cards?fields=idShort,name,closed";
     var sHtml = "";
 
-    $.ajax({
+    try {
+        const data = await $.ajax({
             headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: apiURL,
-            async: false,
-        })
-        .done(function(data) {
-            var bexportArchived = $('#exportArchived').is(':checked');
-
-            // console.log('Got cards: ' + JSON.stringify(data));
-            for (var i = 0; i < data.length; i++) {
-
-                if (!bexportArchived && data[i].closed)
-                    continue;
-
-                var card_id = data[i].id;
-                var cardName = data[i].name;
-                if (!data[i].closed) {
-                    sHtml += '<option value="' + card_id + '">' + cardName + '</option>';
-                } else {
-                    sHtml += '<option value="' + card_id + '">' + cardName + ' [Archived]</option>';
-                }
-            }
-        })
-        .fail(function(jqXHR, textStatus, errorThrown) {
-            console.error("getallcardsinlist error!!!");
-            $.growl.error({
-                title: "TrelloExport",
-                message: jqXHR.statusText + ' ' + jqXHR.status + ': ' + jqXHR.responseText,
-                fixed: true
-            });
-        })
-        .always(function() {
-            // console.log("complete");
+            url: apiURL
         });
+        var bexportArchived = $('#exportArchived').is(':checked');
+
+        // console.log('Got cards: ' + JSON.stringify(data));
+        for (var i = 0; i < data.length; i++) {
+
+            if (!bexportArchived && data[i].closed)
+                continue;
+
+            var card_id = data[i].id;
+            var cardName = data[i].name;
+            if (!data[i].closed) {
+                sHtml += '<option value="' + card_id + '">' + cardName + '</option>';
+            } else {
+                sHtml += '<option value="' + card_id + '">' + cardName + ' [Archived]</option>';
+            }
+        }
+    } catch (error) {
+        console.error("getallcardsinlist error!!!");
+        $.growl.error({
+            title: "TrelloExport",
+            message: error.statusText + ' ' + error.status + ': ' + error.responseText,
+            fixed: true
+        });
+    }
 
     return sHtml;
 }
@@ -1576,52 +1587,44 @@ function extractFloat(str, regex, groupIndex) {
     return value;
 }
 
-function getMember(id) {
+async function getMember(id) {
     var apiURL = "https://trello.com/1/members/" + id;
     var bData = "";
 
-    $.ajax({
-        headers: { 'x-trello-user-agent-extension': 'TrelloExport' },
-        url: apiURL,
-        async: false,
-    })
-        .done(function (data) {
-            bData = data;
-            // console.log(JSON.stringify(data));
-        })
-        .fail(function (jqXHR, textStatus, errorThrown) {
-            console.error("getMember error: " + textStatus);
-            $.growl.error({
-                title: "TrelloExport",
-                message: jqXHR.statusText + ' ' + jqXHR.status + ': ' + jqXHR.responseText,
-                fixed: true
-            });
-        })
-        .always(function () {
-            // console.log("complete");
+    try {
+        const data = await $.ajax({
+            headers: { 'x-trello-user-agent-extension': 'TrelloExport' },
+            url: apiURL
         });
+        bData = data;
+        // console.log(JSON.stringify(data));
+    } catch (error) {
+        console.error("getMember error: ", error);
+        $.growl.error({
+            title: "TrelloExport",
+            message: error.statusText + ' ' + error.status + ': ' + error.responseText,
+            fixed: true
+        });
+    }
 
     return bData;
 }
 
-function loadData(exportFormat, bexportArchived, bExportComments, bExportChecklists, bExportAttachments, iExcelItemsAsRows, bckHTMLCardInfo, bchkHTMLInlineImages, allColumns, selectedColumns, css, filterMode, bExportCustomFields, templateURL, chkANDORFilter) {
+async function loadData(exportFormat, bexportArchived, bExportComments, bExportChecklists, bExportAttachments, iExcelItemsAsRows, bckHTMLCardInfo, bchkHTMLInlineImages, allColumns, selectedColumns, css, filterMode, bExportCustomFields, templateURL, chkANDORFilter) {
     console.log('TrelloExport loading data, export format: ' + exportFormat + '... selectedColumns ' + selectedColumns.length + ' allColumns ' + allColumns.length);
     var converter = new showdown.Converter();
-    var promLoadData = new Promise(
-        function(resolve, reject) {
-            $.growl({
-                title: "TrelloExport",
-                message: "Loading data, please wait..."
-            });
+    
+    $.growl({
+        title: "TrelloExport",
+        message: "Loading data, please wait..."
+    });
 
-            setTimeout(function() {
-                resolve();
-            }, 100);
-        });
+    // Small delay to show the message
+    await new Promise(resolve => setTimeout(resolve, 100));
 
-    promLoadData.then(function() {
+    try {
 
-        var oOrganizations = getorganizations();
+        var oOrganizations = await getorganizations();
         // console.log('oOrganizations = ' + JSON.stringify(oOrganizations));
 
         var jsonComputedCards = [];
@@ -1646,7 +1649,7 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
             console.log('Export board ' + exportboards[iBoard]);
             idBoard = exportboards[iBoard];
 
-            var boardData = getBoardData(idBoard);
+            var boardData = await getBoardData(idBoard);
             var boardName = boardData.name;
             var orgName = '';
             if (oOrganizations) {
@@ -1660,42 +1663,42 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
             var readCards = 0;
 
             var apiURL = "https://trello.com/1/boards/" + idBoard + "/lists?fields=name,closed&filter=all"; //"?lists=all&cards=all&card_fields=all&card_checklists=all&members=all&member_fields=all&membersInvited=all&checklists=all&organization=true&organization_fields=all&fields=all&actions=commentCard%2CcopyCommentCard%2CupdateCheckItemStateOnCard&card_attachments=true";
-            $.ajax({
+            
+            try {
+                const data = await $.ajax({
                     headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-                    url: apiURL,
-                    async: false,
-                })
-                .done(function(data) {
+                    url: apiURL
+                });
 
-                    console.log('DONE: got ' + data.length + ' lists');
+                console.log('DONE: got ' + data.length + ' lists');
 
-                    // if (!bexportArchived) {
-                    //     if (data.closed) {
-                    //         console.log('Skip archived Board ' + data.id);
-                    //         return true;
-                    //     }
-                    // }
+                // if (!bexportArchived) {
+                //     if (data.closed) {
+                //         console.log('Skip archived Board ' + data.id);
+                //         return true;
+                //     }
+                // }
 
-                    $.each(data, function(key, list) {
+                for (const list of data) {
 
                         var sBefore = ''; // reset for each list
 
                         var list_id = list.id;
                         var listName = list.name;
 
-                        if (!bexportArchived) {
-                            if (list.closed) {
-                                // console.log('skip archived list ' + listName);
-                                return true;
-                            }
+                    if (!bexportArchived) {
+                        if (list.closed) {
+                            // console.log('skip archived list ' + listName);
+                            continue;
                         }
+                    }
 
-                        if (exportlists.length > 0) {
-                            if ($.inArray(list_id, exportlists) === -1) {
-                                console.log('skip list ' + listName);
-                                return true;
-                            }
+                    if (exportlists.length > 0) {
+                        if ($.inArray(list_id, exportlists) === -1) {
+                            console.log('skip list ' + listName);
+                            continue;
                         }
+                    }
 
                         // 1.9.14: filter lists by name
                         var accept = true,
@@ -1718,10 +1721,10 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
                             else
                                 accept = true;
                         }
-                        if (!accept) {
-                            // console.log('skipping not accepted list ' + listName);
-                            return true;
-                        }
+                    if (!accept) {
+                        // console.log('skipping not accepted list ' + listName);
+                        continue;
+                    }
 
                         console.log('processing list ' + listName);
                         nProcessedLists++;
@@ -1733,51 +1736,51 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
 
                         var exportedCardsIDs = [];
 
-                        do {
-                            readCards = 0;
+                    do {
+                        readCards = 0;
 
-                            $.ajax({
-                                    headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-                                    url: 'https://trello.com/1/lists/' + list_id + '/cards?limit=' + pageSize + '&filter=all&fields=all&checklists=all&members=true&member_fields=all&membersInvited=all&organization=true&organization_fields=all&actions=commentCard%2CcopyCommentCard%2CupdateCheckItemStateOnCard&attachments=true' + "&before=" + sBefore,
-                                    async: false,
-                                    timeout: 60000,
-                                })
-                                .done(function(datacards) {
+                        try {
+                            const datacards = await $.ajax({
+                                headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
+                                url: 'https://trello.com/1/lists/' + list_id + '/cards?limit=' + pageSize + '&filter=all&fields=all&checklists=all&members=true&member_fields=all&membersInvited=all&organization=true&organization_fields=all&actions=commentCard%2CcopyCommentCard%2CupdateCheckItemStateOnCard&attachments=true' + "&before=" + sBefore,
+                                timeout: 60000
+                            });
 
-                                    readCards = datacards.length;
-                                    // console.log('evaluating ' + datacards.length + ' cards');
+                            readCards = datacards.length;
+                            console.log('evaluating ' + datacards.length + ' cards');
 
-                                    // Iterate through each card and transform data as needed
-                                    $.each(datacards, function(i, card) {
+                            // Iterate through each card and transform data as needed
+                            for (let i = 0; i < datacards.length; i++) {
+                                const card = datacards[i];
 
                                         // console.log('=-=-=-=-=-=-=-=>>>>> I = ' + i);
 
-                                        if (sBefore === card.id) {
-                                            // console.log('ALREADY USED BEFORE VALUE ' + sBefore);
-                                            readCards = -1;
-                                            return;
+                                if (sBefore === card.id) {
+                                    console.log('ALREADY USED BEFORE VALUE ' + sBefore);
+                                    readCards = -1;
+                                    continue;
+                                }
+
+                                if (i === 0) {
+                                    sBefore = card.id;
+                                }
+
+                                if (card.idList == list_id) {
+
+                                    if (!bexportArchived) {
+                                        if (card.closed) {
+                                            console.log('Skip archived card ' + card.name);
+                                            continue;
                                         }
+                                    }
 
-                                        if (i === 0) {
-                                            sBefore = card.id;
+                                    //export selected cards only option
+                                    if (exportcards.length > 0) {
+                                        if ($.inArray(card.id, exportcards) === -1) {
+                                            console.log('skip card ' + card.id);
+                                            continue;
                                         }
-
-                                        if (card.idList == list_id && $.inArray(card.id, exportedCardsIDs) === -1) {
-
-                                            if (!bexportArchived) {
-                                                if (card.closed) {
-                                                    console.log('Skip archived card ' + card.name);
-                                                    return true;
-                                                }
-                                            }
-
-                                            //export selected cards only option
-                                            if (exportcards.length > 0) {
-                                                if ($.inArray(card.id, exportcards) === -1) {
-                                                    console.log('skip card ' + card.id);
-                                                    return true;
-                                                }
-                                            }
+                                    }
 
                                             var accept = true,
                                                 nCardAccepted = 0;
@@ -1944,12 +1947,14 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
                                                 }
 
                                                 //parse checklists
-                                                $.each(checklists, function(i, checklistid) {
+                                                for (let i = 0; i < checklists.length; i++) {
+                                                    const checklistid = checklists[i];
                                                     // console.log('PARSE ' + checklistid);
-                                                    $.each(card.checklists, function(key, list) {
+                                                    for (let key = 0; key < card.checklists.length; key++) {
+                                                        const list = card.checklists[key];
                                                         // console.log('list: ' + JSON.stringify(list));
-                                                        var list_id = list.id;
-                                                        if (list_id == checklistid) {
+                                                        var list_id2 = list.id;
+                                                        if (list_id2 == checklistid) {
                                                             var jsonCheckList = {};
                                                             jsonCheckList.name = (exportFormat === 'HTML' ? html_encode(list.name) : list.name);
                                                             jsonCheckList.items = [];
@@ -1961,7 +1966,8 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
                                                                 })
                                                                 .ToArray();
 
-                                                            $.each(orderedChecklists, function(i, item) {
+                                                            for (let i = 0; i < orderedChecklists.length; i++) {
+                                                                const item = orderedChecklists[i];
                                                                 if (item) {
                                                                     var cItem = {};
                                                                     cItem.name = item.name;
@@ -1969,7 +1975,7 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
                                                                     cItem.state = item.state;
                                                                     cItem.idMember = item.idMember;
                                                                     if(item.idMember !== null){
-                                                                        var m = getMember(item.idMember);
+                                                                        var m = await getMember(item.idMember);
                                                                         if(m !== null){
                                                                             cItem.memberInitials = m.fullName;
                                                                         }
@@ -1997,18 +2003,18 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
                                                                         jsonCheckList.items.push(cItem);
                                                                     }
                                                                 }
-                                                            });
+                                                            }
                                                             jsonCheckLists.push(jsonCheckList);
                                                         }
-                                                    });
-                                                });
+                                                    }
+                                                }
                                             }
 
                                             var numberOfComments = 0;
 
                                             if (bExportComments) {
                                                 //comments
-                                                var commentsOnCard = getCommentCardActions(idBoard, card.id);
+                                                var commentsOnCard = await getCommentCardActions(idBoard, card.id);
                                                 if (commentsOnCard) {
                                                     // console.log('parsing comments');
                                                     // console.log('parse ' + commentsOnCard.length + ' comment actions for this card ' + JSON.stringify(commentsOnCard));
@@ -2094,7 +2100,7 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
 
                                             } else {
                                                 //use the API to get the action created method
-                                                var actionCreateCard = getCreateCardAction(idBoard, card.id);
+                                                var actionCreateCard = await getCreateCardAction(idBoard, card.id);
                                                 if (actionCreateCard && actionCreateCard.memberCreator !== undefined) {
                                                     memberCreator = (actionCreateCard.memberCreator.fullName !== undefined ? actionCreateCard.memberCreator.fullName : actionCreateCard.memberCreator.username);
                                                     datetimeCreated = new Date(actionCreateCard.date);
@@ -2134,7 +2140,7 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
                                                         memberDone = (query[0].memberCreator.fullName !== undefined ? query[0].memberCreator.fullName : query[0].memberCreator.username);
                                                         datetimeDone = query[0].date;
                                                     } else {
-                                                        var actionMoveCard = getMoveCardAction(idBoard, card.id, allnameListDone[nd].trim());
+                                                        var actionMoveCard = await getMoveCardAction(idBoard, card.id, allnameListDone[nd].trim());
                                                         if (actionMoveCard && actionMoveCard.memberCreator !== undefined) {
                                                             memberDone = (actionMoveCard.memberCreator.fullName !== undefined ? actionMoveCard.memberCreator.fullName : actionMoveCard.memberCreator.username);
                                                             datetimeDone = actionMoveCard.date;
@@ -2213,7 +2219,7 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
                                             };
                                             if (bExportCustomFields) {
                                                 // load custom fields values for card
-                                                var cfVals = loadCardCustomFields(card.id);
+                                                var cfVals = await loadCardCustomFields(card.id);
 
                                                 cfVals.forEach(function(dv) {
                                                     rowData.customFields.push({
@@ -2225,53 +2231,55 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
 
                                             }
                                             // console.log('RAWDATA ' + JSON.stringify(rowData));
-                                            jsonComputedCards.push(rowData);
-                                        }
-                                    });
-
-                                })
-                                .fail(function(jqXHR, textStatus, errorThrown) {
-                                    console.error("Error: " + jqXHR.statusText + ' ' + jqXHR.status + ': ' + jqXHR.responseText);
-                                    readCards = -1;
-                                    
-                                    // Handle specific errors
-                                    if (jqXHR.status === 429) {
-                                        $.growl.error({
-                                            title: "Rate Limit Error",
-                                            message: 'Too many requests. Please wait a moment and try again with fewer items selected.',
-                                            fixed: true,
-                                            duration: 10000
-                                        });
-                                    } else if (jqXHR.status === 504 || textStatus === 'timeout') {
-                                        $.growl.error({
-                                            title: "Timeout Error", 
-                                            message: 'Request timed out. Try exporting fewer cards or lists at once.',
-                                            fixed: true,
-                                            duration: 10000
-                                        });
-                                    } else {
-                                        $.growl.error({
-                                            title: "TrelloExport",
-                                            message: jqXHR.statusText + ' ' + jqXHR.status + ': ' + jqXHR.responseText,
-                                            fixed: true
-                                        });
+                                        jsonComputedCards.push(rowData);
                                     }
+                                    else {
+                                        console.log('Skipping card ' + card.id + ' because it is not in the selected lists, exportedCardsIDs: ' + exportedCardsIDs);
+                                        console.log('card.idList ' + card.idList + '!= list_id ' + list_id);
+                                    }
+                                }
+
+                        } catch (error) {
+                            console.error("Error: ", error);
+                            readCards = -1;
+                            
+                            // Handle specific errors
+                            if (error.status === 429) {
+                                $.growl.error({
+                                    title: "Rate Limit Error",
+                                    message: 'Too many requests. Please wait a moment and try again with fewer items selected.',
+                                    fixed: true,
+                                    duration: 10000
                                 });
+                            } else if (error.status === 504 || error.statusText === 'timeout') {
+                                $.growl.error({
+                                    title: "Timeout Error", 
+                                    message: 'Request timed out. Try exporting fewer cards or lists at once.',
+                                    fixed: true,
+                                    duration: 10000
+                                });
+                            } else {
+                                $.growl.error({
+                                    title: "TrelloExport",
+                                    message: error.statusText + ' ' + error.status + ': ' + error.responseText,
+                                    fixed: true
+                                });
+                            }
+                        }
 
-                        } while (readCards > 0);
-                        // cards loop end
+                    } while (readCards > 0);
+                    // cards loop end
 
-                    });
+                }
 
-                })
-                .fail(function(jqXHR, textStatus, errorThrown) {
-                    console.error("Error: " + jqXHR.statusText + ' ' + jqXHR.status + ': ' + jqXHR.responseText);
-                    $.growl.error({
-                        title: "TrelloExport",
-                        message: jqXHR.statusText + ' ' + jqXHR.status + ': ' + jqXHR.responseText,
-                        fixed: true
-                    });
+            } catch (error) {
+                console.error("Error: ", error);
+                $.growl.error({
+                    title: "TrelloExport",
+                    message: error.statusText + ' ' + error.status + ': ' + error.responseText,
+                    fixed: true
                 });
+            }
 
             // end loop boards
             nProcessedBoards++;
@@ -2289,7 +2297,7 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
         switch (exportFormat) {
 
             case 'XLSX':
-                createExcelExport(jsonComputedCards, iExcelItemsAsRows, allColumns, selectedColumns, bExportCustomFields, false);
+                await createExcelExport(jsonComputedCards, iExcelItemsAsRows, allColumns, selectedColumns, bExportCustomFields, false);
                 break;
 
             case 'MD':
@@ -2305,7 +2313,7 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
                 break;
 
             case 'CSV':
-                var data = createExcelExport(jsonComputedCards, iExcelItemsAsRows, allColumns, selectedColumns, bExportCustomFields, true);
+                var data = await createExcelExport(jsonComputedCards, iExcelItemsAsRows, allColumns, selectedColumns, bExportCustomFields, true);
                 createCSVExport(data, bexportArchived);
                 break;
 
@@ -2319,22 +2327,19 @@ function loadData(exportFormat, bexportArchived, bExportComments, bExportCheckli
                 break;
         }
 
-
-    }).catch(
-        // rejection
-        function(reason) {
-            console.error('===Error=== ' + reason);
-            $.growl.error({
-                title: "TrelloExport",
-                message: reason,
-                fixed: true
-            });
+    } catch (error) {
+        console.error('Error in loadData:', error);
+        $.growl.error({
+            title: "TrelloExport",
+            message: "An error occurred while loading data: " + error.message,
+            fixed: true
         });
-
+    }
+    // End loadData
 }
 
 // createExcelExport: export to XLSX
-function createExcelExport(jsonComputedCards, iExcelItemsAsRows, allColumns, columnHeadings, bExportCustomFields, isCsv) {
+async function createExcelExport(jsonComputedCards, iExcelItemsAsRows, allColumns, columnHeadings, bExportCustomFields, isCsv) {
     console.log('TrelloExport exporting to Excel ' + jsonComputedCards.length + ' cards... columnHeadings ' + columnHeadings.length  + ' allColumns ' + allColumns.length);
 
     // prepare Workbook
@@ -2359,7 +2364,8 @@ function createExcelExport(jsonComputedCards, iExcelItemsAsRows, allColumns, col
     w.data[0] = columnHeadings;
 
     // loop jsonComputedCards
-    jsonComputedCards.forEach(function(card) {
+    for (let cardIndex = 0; cardIndex < jsonComputedCards.length; cardIndex++) {
+        const card = jsonComputedCards[cardIndex];
 
         var toStringArray = [];
         var nTotalCheckListItems = 0,
@@ -3332,7 +3338,7 @@ function createExcelExport(jsonComputedCards, iExcelItemsAsRows, allColumns, col
                 break;
         }
 
-    });
+    }
 
     //console.log('w.data: ' + w.data.length + ', wArchived.data: ' + wArchived.data.length);
 
@@ -3767,23 +3773,7 @@ async function loadDataAsync(exportFormat, bexportArchived, bExportComments, bEx
     console.log('TrelloExport loading data ASYNC, export format: ' + exportFormat);
     
     try {
-        // Use the existing loadData function but wrap it in a promise to handle errors
-        // For now, we'll just call the original function
-        // TODO: Gradually migrate the internal API calls to use async functions
-        
-        return new Promise((resolve, reject) => {
-            try {
-                // Call the original loadData function
-                loadData(exportFormat, bexportArchived, bExportComments, bExportChecklists, bExportAttachments, iExcelItemsAsRows, bckHTMLCardInfo, bchkHTMLInlineImages, allColumns, selectedColumns, css, filterMode, bExportCustomFields, templateURL, chkANDORFilter);
-                
-                // The original function doesn't return a promise, so we'll resolve after a delay
-                setTimeout(() => {
-                    resolve();
-                }, 100);
-            } catch (error) {
-                reject(error);
-            }
-        });
+        await loadData(exportFormat, bexportArchived, bExportComments, bExportChecklists, bExportAttachments, iExcelItemsAsRows, bckHTMLCardInfo, bchkHTMLInlineImages, allColumns, selectedColumns, css, filterMode, bExportCustomFields, templateURL, chkANDORFilter);
         
     } catch (error) {
         console.error('loadDataAsync error:', error);

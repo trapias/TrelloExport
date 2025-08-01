@@ -20,6 +20,10 @@ If you cannot find a solution, or would like some new feature to be implemented,
 
 ## Release history
 
+### Version 1.9.79
+- async data loading
+- fix exporting cards in a list when requesting to export checklists
+
 ### Version 1.9.78
 - Injection of TrelloExport button for Chinese (Traditional) language
 
