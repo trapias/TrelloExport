@@ -266,8 +266,10 @@
 * Whatsnew for v. 1.9.79:
     - async data loading
     - fix exporting cards in a list when requesting to export checklists
+* Whatsnew for v. 1.9.80:
+    - complete async data loading
 */
-var VERSION = '1.9.79';
+var VERSION = '1.9.80';
 
 // TWIG templates definition
 var availableTwigTemplates = [
@@ -716,7 +718,26 @@ async function TrelloExportOptions() {
 
         var columnHeadings = [];
         customFields = []; // reset
-        columnHeadings = await setColumnHeadings(0);
+        
+        // Try to load column headings with error handling
+        try {
+            columnHeadings = await setColumnHeadings(0);
+            console.log('[TrelloExport] Loaded ' + columnHeadings.length + ' column headings');
+        } catch (error) {
+            console.error('[TrelloExport] Error loading column headings:', error);
+            // Fallback to default columns if API fails
+            columnHeadings = [
+                'Organization', 'Board', 'List', 'Card #', 'Title', 'Link', 'Description',
+                'Total Checklist items', 'Completed Checklist items', 'Checklists',
+                'NumberOfComments', 'Comments', 'Attachments', 'Votes', 'Spent', 'Estimate',
+                'Points Estimate', 'Points Consumed', 'Created', 'CreatedBy', 'LastActivity', 'Due',
+                'Done', 'DoneBy', 'DoneTime', 'Members', 'Labels'
+            ];
+            $.growl.warning({
+                title: "TrelloExport",
+                message: "Using default columns due to loading error"
+            });
+        }
 
         // https://github.com/davidstutz/bootstrap-multiselect
         var options = [];
@@ -811,7 +832,10 @@ async function TrelloExportOptions() {
         closeLabel: "Close",
         // cssClass: ['custom-class-1', 'custom-class-2'],
         onOpen: function() {
-            initializeModal();
+            // Small delay to ensure DOM is ready
+            setTimeout(function() {
+                initializeModal();
+            }, 100);
         },
         // onClose: function() {
         //     // console.log('modal closed');
@@ -957,16 +981,30 @@ async function TrelloExportOptions() {
         function initializeModal() {
 
         $('[data-toggle="tooltip"]').tooltip();
-        $('#selectedColumns').multiselect({
-            includeSelectAllOption: true,
-            onSelectAll: function() {
-                localStorage.TrelloExportSelectedColumns = '';
-            }
-        });
+        
+        // Initialize multiselect with error handling
+        try {
+            if ($.fn.multiselect) {
+                $('#selectedColumns').multiselect({
+                    includeSelectAllOption: true,
+                    onSelectAll: function() {
+                        localStorage.TrelloExportSelectedColumns = '';
+                    }
+                });
 
-        $('button.multiselect.dropdown-toggle.btn.btn-default').click(function() {
-            $('.multiselect-container.dropdown-menu').toggle();
-        });
+                $('button.multiselect.dropdown-toggle.btn.btn-default').click(function() {
+                    $('.multiselect-container.dropdown-menu').toggle();
+                });
+            } else {
+                console.error('[TrelloExport] Bootstrap multiselect not loaded');
+                // Fallback: use native multi-select
+                $('#selectedColumns').attr('multiple', 'multiple').attr('size', 8);
+            }
+        } catch (error) {
+            console.error('[TrelloExport] Error initializing multiselect:', error);
+            // Fallback: use native multi-select
+            $('#selectedColumns').attr('multiple', 'multiple').attr('size', 8);
+        }
 
         $('#templateSetURL').on('change', function() {
             var tplsetURL = $('#templateSetURL').val();
@@ -1048,8 +1086,12 @@ async function TrelloExportOptions() {
                     // get a list of all boards
                     // $('#customfields').attr('checked', false); // custom fields not yet available for multiple boards
                     // $('#customfields').attr('disabled', true);
-                    sSelect = getallboards();
+                    sSelect = await getallboards();
+                    if (sSelect && sSelect.length > 0) {
                     $('#optionslist').append('<tr><td>Select one or more Boards</td><td><select multiple id="choosenboards">' + sSelect + '</select></td></tr>');
+                } else {
+                    $('#optionslist').append('<tr><td colspan="2"><span style="color: #d9534f;">No boards found. Please check your Trello permissions.</span></td></tr>');
+                }
                     // $('#optionslist').append('<tr><td>Filter lists by name:</td><td><input type="text" size="4" name="filterListsNames" class="filterListsNames" value="" placeholder="Set string or leave empty"></td></tr>');
                     break;
                 case 'cards':
@@ -1195,6 +1237,8 @@ async function TrelloExportOptions() {
 }
 
 async function setColumnHeadings(asrowsMode) {
+    var columnHeadings = [];
+    
     switch (Number(asrowsMode)) {
         case 1: // checklist item
             columnHeadings = [
@@ -1258,21 +1302,40 @@ async function setColumnHeadings(asrowsMode) {
         var o = '<option value="' + columnHeadings[x] + '" ' + (isSelected === 'selected' ? 'selected="selected"' : '') + '>' + columnHeadings[x] + '</option>';
         ColumnOptions.push(o);
     }
-    $('#selectedColumns').multiselect('destroy')
-        .find('option')
-        .remove()
-        .end()
-        .append(ColumnOptions.join(''))
-        .multiselect({
-            includeSelectAllOption: true,
-            onSelectAll: function() {
-                localStorage.TrelloExportSelectedColumns = '';
-            }
-        });
+    try {
+        if ($.fn.multiselect) {
+            $('#selectedColumns').multiselect('destroy')
+                .find('option')
+                .remove()
+                .end()
+                .append(ColumnOptions.join(''))
+                .multiselect({
+                    includeSelectAllOption: true,
+                    onSelectAll: function() {
+                        localStorage.TrelloExportSelectedColumns = '';
+                    }
+                });
 
-    $('button.multiselect.dropdown-toggle.btn.btn-default').click(function() {
-        $('.multiselect-container.dropdown-menu').toggle();
-    });
+            $('button.multiselect.dropdown-toggle.btn.btn-default').click(function() {
+                $('.multiselect-container.dropdown-menu').toggle();
+            });
+        } else {
+            // Fallback: just update the select without multiselect
+            $('#selectedColumns')
+                .find('option')
+                .remove()
+                .end()
+                .append(ColumnOptions.join(''));
+        }
+    } catch (error) {
+        console.error('[TrelloExport] Error rebuilding multiselect:', error);
+        // Fallback: just update the select
+        $('#selectedColumns')
+            .find('option')
+            .remove()
+            .end()
+            .append(ColumnOptions.join(''));
+    }
 
     return columnHeadings;
 }
@@ -1415,7 +1478,8 @@ async function getorganizations() {
     try {
         const data = await $.ajax({
             headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: apiURL
+            url: apiURL,
+            timeout: 10000 // 10 second timeout
         });
         $.each(data, function(key, org) {
             orgID.push({ id: org.id, displayName: org.displayName });
@@ -1424,11 +1488,16 @@ async function getorganizations() {
 
     } catch (error) {
         console.error("getorganizations: ", error);
-        $.growl.error({
-            title: "TrelloExport",
-            message: error.statusText + ' ' + error.status + ': ' + error.responseText,
-            fixed: true
-        });
+        // Don't show error for 401/403 - user might not have access to organizations
+        if (error.status !== 401 && error.status !== 403) {
+            $.growl.warning({
+                title: "TrelloExport",
+                message: "Could not load organizations. Using Personal Boards only.",
+                duration: 5000
+            });
+        }
+        // Return Personal Boards as fallback
+        orgID = [{ id: null, displayName: 'Personal Boards' }];
     }
 
     return orgID;
@@ -1462,6 +1531,12 @@ async function getallboards() {
     var allIDs = await getorganizations();
     var sHtml = "";
     var tmpIDs = [];
+    
+    // If no organizations found, still try to get boards
+    if (!allIDs || allIDs.length === 0) {
+        console.log('[TrelloExport] No organizations found, using Personal Boards only');
+        allIDs = [{ id: null, displayName: 'Personal Boards' }];
+    }
 
     for (const oid of allIDs) {
 
@@ -1476,7 +1551,8 @@ async function getallboards() {
         try {
             const data = await $.ajax({
                 headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-                url: apiURL
+                url: apiURL,
+                timeout: 10000 // 10 second timeout
             });
 
             var bexportArchived = $('#exportArchived').is(':checked');
@@ -1624,8 +1700,14 @@ async function loadData(exportFormat, bexportArchived, bExportComments, bExportC
 
     try {
 
-        var oOrganizations = await getorganizations();
-        // console.log('oOrganizations = ' + JSON.stringify(oOrganizations));
+        var oOrganizations = [];
+        try {
+            oOrganizations = await getorganizations();
+            // console.log('oOrganizations = ' + JSON.stringify(oOrganizations));
+        } catch (error) {
+            console.error('[TrelloExport] Error loading organizations:', error);
+            oOrganizations = [{ id: null, displayName: 'Personal Boards' }];
+        }
 
         var jsonComputedCards = [];
 
