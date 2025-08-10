@@ -268,8 +268,10 @@
     - fix exporting cards in a list when requesting to export checklists
 * Whatsnew for v. 1.9.80:
     - complete async data loading
+* Whatsnew for v. 1.9.81:
+    - fix loop in loading cards when using "select lists in current board" option
 */
-var VERSION = '1.9.80';
+var VERSION = '1.9.81';
 
 // TWIG templates definition
 var availableTwigTemplates = [
@@ -1763,26 +1765,26 @@ async function loadData(exportFormat, bexportArchived, bExportComments, bExportC
 
                 for (const list of data) {
 
-                        var sBefore = ''; // reset for each list
-
                         var list_id = list.id;
                         var listName = list.name;
+                        var shouldProcessList = true;
 
                     if (!bexportArchived) {
                         if (list.closed) {
                             // console.log('skip archived list ' + listName);
-                            continue;
+                            shouldProcessList = false;
                         }
                     }
 
-                    if (exportlists.length > 0) {
+                    if (shouldProcessList && exportlists.length > 0) {
                         if ($.inArray(list_id, exportlists) === -1) {
                             console.log('skip list ' + listName);
-                            continue;
+                            shouldProcessList = false;
                         }
                     }
 
-                        // 1.9.14: filter lists by name
+                    // 1.9.14: filter lists by name
+                    if (shouldProcessList) {
                         var accept = true,
                             nListAccepted = 0;
                         if (filterListsNames.length > 0 && filterMode === 'List') {
@@ -1803,11 +1805,13 @@ async function loadData(exportFormat, bexportArchived, bExportComments, bExportC
                             else
                                 accept = true;
                         }
-                    if (!accept) {
-                        // console.log('skipping not accepted list ' + listName);
-                        continue;
+                        if (!accept) {
+                            console.log('skipping not accepted list ' + listName);
+                            shouldProcessList = false;
+                        }
                     }
 
+                    if (shouldProcessList) {
                         console.log('processing list ' + listName);
                         nProcessedLists++;
 
@@ -1817,19 +1821,22 @@ async function loadData(exportFormat, bexportArchived, bExportComments, bExportC
                         }
 
                         var exportedCardsIDs = [];
-
-                    do {
+                        var processedCardIds = {}; // Track cards we've already seen
+                        
+                        // Only process cards if the list should be processed
+                        // Note: Pagination with 'before' doesn't work well for /lists/{id}/cards endpoint
+                        // We'll get all cards in one request instead
                         readCards = 0;
 
                         try {
                             const datacards = await $.ajax({
                                 headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-                                url: 'https://trello.com/1/lists/' + list_id + '/cards?limit=' + pageSize + '&filter=all&fields=all&checklists=all&members=true&member_fields=all&membersInvited=all&organization=true&organization_fields=all&actions=commentCard%2CcopyCommentCard%2CupdateCheckItemStateOnCard&attachments=true' + "&before=" + sBefore,
+                                url: 'https://trello.com/1/lists/' + list_id + '/cards?limit=1000&filter=all&fields=all&checklists=all&members=true&member_fields=all&membersInvited=all&organization=true&organization_fields=all&actions=commentCard%2CcopyCommentCard%2CupdateCheckItemStateOnCard&attachments=true',
                                 timeout: 60000
                             });
 
                             readCards = datacards.length;
-                            console.log('evaluating ' + datacards.length + ' cards');
+                            console.log('evaluating ' + datacards.length + ' cards in list ' + listName);
 
                             // Iterate through each card and transform data as needed
                             for (let i = 0; i < datacards.length; i++) {
@@ -1837,15 +1844,12 @@ async function loadData(exportFormat, bexportArchived, bExportComments, bExportC
 
                                         // console.log('=-=-=-=-=-=-=-=>>>>> I = ' + i);
 
-                                if (sBefore === card.id) {
-                                    console.log('ALREADY USED BEFORE VALUE ' + sBefore);
-                                    readCards = -1;
+                                // Skip if we've already processed this card
+                                if (processedCardIds[card.id]) {
+                                    console.log('Skipping already processed card ' + card.id);
                                     continue;
                                 }
-
-                                if (i === 0) {
-                                    sBefore = card.id;
-                                }
+                                processedCardIds[card.id] = true;
 
                                 if (card.idList == list_id) {
 
@@ -2323,7 +2327,6 @@ async function loadData(exportFormat, bexportArchived, bExportComments, bExportC
 
                         } catch (error) {
                             console.error("Error: ", error);
-                            readCards = -1;
                             
                             // Handle specific errors
                             if (error.status === 429) {
@@ -2348,9 +2351,9 @@ async function loadData(exportFormat, bexportArchived, bExportComments, bExportC
                                 });
                             }
                         }
-
-                    } while (readCards > 0);
-                    // cards loop end
+                    // cards processing end
+                    
+                    } // end if (shouldProcessList)
 
                 }
 

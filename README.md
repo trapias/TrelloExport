@@ -20,6 +20,12 @@ If you cannot find a solution, or would like some new feature to be implemented,
 
 ## Release history
 
+### Version 1.9.81
+- fix loop in loading cards when using "select lists in current board" option
+
+### Version 1.9.80
+- complete async data loading
+
 ### Version 1.9.79
 - async data loading
 - fix exporting cards in a list when requesting to export checklists
