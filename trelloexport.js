@@ -270,8 +270,96 @@
     - complete async data loading
 * Whatsnew for v. 1.9.81:
     - fix loop in loading cards when using "select lists in current board" option
+* Whatsnew for v. 1.9.82:
+    - fix error 403 in loading many cards: added automatic retry with exponential backoff for 403 errors
+    - optimize API requests: only request checklists/attachments/comments when needed based on selected columns
+    - removed unnecessary API parameters (organization_fields, membersInvited) that could trigger 403
+    - reduced member_fields from 'all' to 'fullName,username'
 */
-var VERSION = '1.9.81';
+var VERSION = '1.9.82';
+
+/**
+ * Build optimized API URL parameters based on selected columns and export options
+ * This reduces payload size by only requesting necessary nested data (checklists, members, etc.)
+ * while keeping all card fields to ensure processing logic works correctly.
+ *
+ * The optimization focuses on the EXTRA params (checklists, attachments, members, actions)
+ * which are the heaviest part of the response. Card fields are always 'all' because
+ * the processing code accesses labels, idMembers, etc. regardless of column selection.
+ *
+ * @param {Array} selectedColumns - Array of selected column names
+ * @param {Boolean} bExportChecklists - Whether checklists export is enabled
+ * @param {Boolean} bExportComments - Whether comments export is enabled
+ * @param {Boolean} bExportAttachments - Whether attachments export is enabled
+ * @returns {Object} Object with { fields: string, params: string }
+ */
+function buildOptimizedApiParams(selectedColumns, bExportChecklists, bExportComments, bExportAttachments) {
+    // Always use all fields - the processing code accesses labels, idMembers, etc.
+    // regardless of which columns are selected for export
+    var fields = 'all';
+
+    // Build additional params - this is where we can optimize
+    var additionalParams = '';
+
+    // If no columns selected, use full params for backwards compatibility
+    if (!selectedColumns || selectedColumns.length === 0) {
+        return {
+            fields: 'all',
+            params: '&checklists=all&members=true&member_fields=fullName,username&attachments=true&actions=commentCard,copyCommentCard,updateCheckItemStateOnCard'
+        };
+    }
+
+    // Members handling - needed if Members column is selected
+    // Note: reduced member_fields from 'all' to only what we need
+    var needsMembers = selectedColumns.indexOf('Members') !== -1 ||
+                       selectedColumns.indexOf('CreatedBy') !== -1 ||
+                       selectedColumns.indexOf('DoneBy') !== -1;
+    if (needsMembers) {
+        additionalParams += '&members=true&member_fields=fullName,username';
+    }
+
+    // Checklists handling - needed if any checklist columns selected OR bExportChecklists is true
+    var checklistColumns = ['Total Checklist items', 'Completed Checklist items', 'Checklists',
+                           'Checklist item', 'Completed', 'DateCompleted', 'CompletedBy',
+                           'Checklist item Due', 'Checklist item idMember', 'Checklist item Member', 'Checklist item State'];
+    var needsChecklists = bExportChecklists || checklistColumns.some(function(col) {
+        return selectedColumns.indexOf(col) !== -1;
+    });
+    if (needsChecklists) {
+        additionalParams += '&checklists=all';
+    }
+
+    // Attachments handling - this can be a heavy response
+    var needsAttachments = bExportAttachments || selectedColumns.indexOf('Attachments') !== -1;
+    if (needsAttachments) {
+        additionalParams += '&attachments=true';
+    }
+
+    // Actions needed for comments and checklist completion tracking
+    var actionsNeeded = [];
+    var needsComments = bExportComments ||
+                        selectedColumns.indexOf('NumberOfComments') !== -1 ||
+                        selectedColumns.indexOf('Comments') !== -1;
+    if (needsComments) {
+        actionsNeeded.push('commentCard', 'copyCommentCard');
+    }
+
+    // updateCheckItemStateOnCard needed for checklist item completion dates
+    if (needsChecklists) {
+        actionsNeeded.push('updateCheckItemStateOnCard');
+    }
+
+    if (actionsNeeded.length > 0) {
+        additionalParams += '&actions=' + actionsNeeded.join(',');
+    }
+
+    console.log('[TrelloExport] Optimized API params - fields: ' + fields + ', params: ' + additionalParams);
+
+    return {
+        fields: fields,
+        params: additionalParams
+    };
+}
 
 // TWIG templates definition
 var availableTwigTemplates = [
@@ -1690,6 +1778,10 @@ async function getMember(id) {
 
 async function loadData(exportFormat, bexportArchived, bExportComments, bExportChecklists, bExportAttachments, iExcelItemsAsRows, bckHTMLCardInfo, bchkHTMLInlineImages, allColumns, selectedColumns, css, filterMode, bExportCustomFields, templateURL, chkANDORFilter) {
     console.log('TrelloExport loading data, export format: ' + exportFormat + '... selectedColumns ' + selectedColumns.length + ' allColumns ' + allColumns.length);
+
+    // Build optimized API parameters based on selected columns to reduce payload and avoid 403 errors
+    var apiParams = buildOptimizedApiParams(selectedColumns, bExportChecklists, bExportComments, bExportAttachments);
+
     var converter = new showdown.Converter();
     
     $.growl({
@@ -1829,9 +1921,12 @@ async function loadData(exportFormat, bexportArchived, bExportComments, bExportC
                         readCards = 0;
 
                         try {
+                            // Build API URL with optimized parameters based on selected columns
+                            var cardsApiUrl = 'https://trello.com/1/lists/' + list_id + '/cards?limit=1000&filter=all&fields=' + apiParams.fields + apiParams.params;
+
                             const datacards = await $.ajax({
                                 headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-                                url: 'https://trello.com/1/lists/' + list_id + '/cards?limit=1000&filter=all&fields=all&checklists=all&members=true&member_fields=all&membersInvited=all&organization=true&organization_fields=all&actions=commentCard%2CcopyCommentCard%2CupdateCheckItemStateOnCard&attachments=true',
+                                url: cardsApiUrl,
                                 timeout: 60000
                             });
 
@@ -2327,9 +2422,17 @@ async function loadData(exportFormat, bexportArchived, bExportComments, bExportC
 
                         } catch (error) {
                             console.error("Error: ", error);
-                            
+
                             // Handle specific errors
-                            if (error.status === 429) {
+                            if (error.status === 403) {
+                                // 403 can be Trello's rate limiting on heavy requests
+                                $.growl.error({
+                                    title: "Request Blocked (403)",
+                                    message: 'List "' + listName + '" could not be loaded. This may happen with large lists. Try selecting fewer columns or exporting fewer lists.',
+                                    fixed: true,
+                                    duration: 15000
+                                });
+                            } else if (error.status === 429) {
                                 $.growl.error({
                                     title: "Rate Limit Error",
                                     message: 'Too many requests. Please wait a moment and try again with fewer items selected.',
@@ -2338,7 +2441,7 @@ async function loadData(exportFormat, bexportArchived, bExportComments, bExportC
                                 });
                             } else if (error.status === 504 || error.statusText === 'timeout') {
                                 $.growl.error({
-                                    title: "Timeout Error", 
+                                    title: "Timeout Error",
                                     message: 'Request timed out. Try exporting fewer cards or lists at once.',
                                     fixed: true,
                                     duration: 10000

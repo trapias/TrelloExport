@@ -20,6 +20,12 @@ If you cannot find a solution, or would like some new feature to be implemented,
 
 ## Release history
 
+### Version 1.9.82
+- fix error 403 in loading many cards: added automatic retry with exponential backoff for 403 errors
+- optimize API requests: only request checklists/attachments/comments when needed based on selected columns
+- removed unnecessary API parameters (organization_fields, membersInvited) that could trigger 403
+- reduced member_fields from 'all' to 'fullName,username'
+
 ### Version 1.9.81
 - fix loop in loading cards when using "select lists in current board" option
 

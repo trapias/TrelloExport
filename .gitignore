@@ -3,3 +3,5 @@
 .vscode/*
 bower_components/*
 node_modules/*
+/Safari
+/SafariApp
