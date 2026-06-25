@@ -227,7 +227,7 @@
 * Whatsnew for v. 1.9.63:
     - fix unshowing button on team boards (issue #65, thanks https://github.com/varmais)
 * Whatsnew for v. 1.9.64:
-    - fix some UI defects for the "export columns" dropdown 
+    - fix some UI defects for the "export columns" dropdown
     - new CSV export type
 * Whatsnew for v. 1.9.65:
     - fix exporting of Archived items to Excel and CSV
@@ -275,8 +275,11 @@
     - optimize API requests: only request checklists/attachments/comments when needed based on selected columns
     - removed unnecessary API parameters (organization_fields, membersInvited) that could trigger 403
     - reduced member_fields from 'all' to 'fullName,username'
+* Whatsnew for v. 1.9.83:
+  - fix issue 83 (charset for HTML export)
+  - update HTML template-set and load from https://www.trapias.it/assets/TrelloExport/templates.json
 */
-var VERSION = '1.9.82';
+var VERSION = "1.9.83";
 
 /**
  * Build optimized API URL parameters based on selected columns and export options
@@ -293,133 +296,176 @@ var VERSION = '1.9.82';
  * @param {Boolean} bExportAttachments - Whether attachments export is enabled
  * @returns {Object} Object with { fields: string, params: string }
  */
-function buildOptimizedApiParams(selectedColumns, bExportChecklists, bExportComments, bExportAttachments) {
-    // Always use all fields - the processing code accesses labels, idMembers, etc.
-    // regardless of which columns are selected for export
-    var fields = 'all';
+function buildOptimizedApiParams(
+  selectedColumns,
+  bExportChecklists,
+  bExportComments,
+  bExportAttachments,
+) {
+  // Always use all fields - the processing code accesses labels, idMembers, etc.
+  // regardless of which columns are selected for export
+  var fields = "all";
 
-    // Build additional params - this is where we can optimize
-    var additionalParams = '';
+  // Build additional params - this is where we can optimize
+  var additionalParams = "";
 
-    // If no columns selected, use full params for backwards compatibility
-    if (!selectedColumns || selectedColumns.length === 0) {
-        return {
-            fields: 'all',
-            params: '&checklists=all&members=true&member_fields=fullName,username&attachments=true&actions=commentCard,copyCommentCard,updateCheckItemStateOnCard'
-        };
-    }
-
-    // Members handling - needed if Members column is selected
-    // Note: reduced member_fields from 'all' to only what we need
-    var needsMembers = selectedColumns.indexOf('Members') !== -1 ||
-                       selectedColumns.indexOf('CreatedBy') !== -1 ||
-                       selectedColumns.indexOf('DoneBy') !== -1;
-    if (needsMembers) {
-        additionalParams += '&members=true&member_fields=fullName,username';
-    }
-
-    // Checklists handling - needed if any checklist columns selected OR bExportChecklists is true
-    var checklistColumns = ['Total Checklist items', 'Completed Checklist items', 'Checklists',
-                           'Checklist item', 'Completed', 'DateCompleted', 'CompletedBy',
-                           'Checklist item Due', 'Checklist item idMember', 'Checklist item Member', 'Checklist item State'];
-    var needsChecklists = bExportChecklists || checklistColumns.some(function(col) {
-        return selectedColumns.indexOf(col) !== -1;
-    });
-    if (needsChecklists) {
-        additionalParams += '&checklists=all';
-    }
-
-    // Attachments handling - this can be a heavy response
-    var needsAttachments = bExportAttachments || selectedColumns.indexOf('Attachments') !== -1;
-    if (needsAttachments) {
-        additionalParams += '&attachments=true';
-    }
-
-    // Actions needed for comments and checklist completion tracking
-    var actionsNeeded = [];
-    var needsComments = bExportComments ||
-                        selectedColumns.indexOf('NumberOfComments') !== -1 ||
-                        selectedColumns.indexOf('Comments') !== -1;
-    if (needsComments) {
-        actionsNeeded.push('commentCard', 'copyCommentCard');
-    }
-
-    // updateCheckItemStateOnCard needed for checklist item completion dates
-    if (needsChecklists) {
-        actionsNeeded.push('updateCheckItemStateOnCard');
-    }
-
-    if (actionsNeeded.length > 0) {
-        additionalParams += '&actions=' + actionsNeeded.join(',');
-    }
-
-    console.log('[TrelloExport] Optimized API params - fields: ' + fields + ', params: ' + additionalParams);
-
+  // If no columns selected, use full params for backwards compatibility
+  if (!selectedColumns || selectedColumns.length === 0) {
     return {
-        fields: fields,
-        params: additionalParams
+      fields: "all",
+      params:
+        "&checklists=all&members=true&member_fields=fullName,username&attachments=true&actions=commentCard,copyCommentCard,updateCheckItemStateOnCard",
     };
+  }
+
+  // Members handling - needed if Members column is selected
+  // Note: reduced member_fields from 'all' to only what we need
+  var needsMembers =
+    selectedColumns.indexOf("Members") !== -1 ||
+    selectedColumns.indexOf("CreatedBy") !== -1 ||
+    selectedColumns.indexOf("DoneBy") !== -1;
+  if (needsMembers) {
+    additionalParams += "&members=true&member_fields=fullName,username";
+  }
+
+  // Checklists handling - needed if any checklist columns selected OR bExportChecklists is true
+  var checklistColumns = [
+    "Total Checklist items",
+    "Completed Checklist items",
+    "Checklists",
+    "Checklist item",
+    "Completed",
+    "DateCompleted",
+    "CompletedBy",
+    "Checklist item Due",
+    "Checklist item idMember",
+    "Checklist item Member",
+    "Checklist item State",
+  ];
+  var needsChecklists =
+    bExportChecklists ||
+    checklistColumns.some(function (col) {
+      return selectedColumns.indexOf(col) !== -1;
+    });
+  if (needsChecklists) {
+    additionalParams += "&checklists=all";
+  }
+
+  // Attachments handling - this can be a heavy response
+  var needsAttachments =
+    bExportAttachments || selectedColumns.indexOf("Attachments") !== -1;
+  if (needsAttachments) {
+    additionalParams += "&attachments=true";
+  }
+
+  // Actions needed for comments and checklist completion tracking
+  var actionsNeeded = [];
+  var needsComments =
+    bExportComments ||
+    selectedColumns.indexOf("NumberOfComments") !== -1 ||
+    selectedColumns.indexOf("Comments") !== -1;
+  if (needsComments) {
+    actionsNeeded.push("commentCard", "copyCommentCard");
+  }
+
+  // updateCheckItemStateOnCard needed for checklist item completion dates
+  if (needsChecklists) {
+    actionsNeeded.push("updateCheckItemStateOnCard");
+  }
+
+  if (actionsNeeded.length > 0) {
+    additionalParams += "&actions=" + actionsNeeded.join(",");
+  }
+
+  console.log(
+    "[TrelloExport] Optimized API params - fields: " +
+      fields +
+      ", params: " +
+      additionalParams,
+  );
+
+  return {
+    fields: fields,
+    params: additionalParams,
+  };
 }
 
 // TWIG templates definition
 var availableTwigTemplates = [
-    { name: 'html', url: chrome.runtime.getURL('/templates/html.twig'), description: 'Default HTML' },
-    { name: 'bibliography', url: chrome.runtime.getURL('/templates/bibliography.twig'), description: 'Bibliography HTML', css: chrome.runtime.getURL('/templates/bibliography.css'), },
-    { name: 'newsletter', url: chrome.runtime.getURL('/templates/newsletter.twig'), description: 'Newsletter with buttons HTML', css: chrome.runtime.getURL('/templates/newsletter.css'), },
-    { name: 'newsletter2', url: chrome.runtime.getURL('/templates/newsletter2.twig'), description: 'Newsletter with links HTML', css: chrome.runtime.getURL('/templates/newsletter.css'), }
+  {
+    name: "html",
+    url: chrome.runtime.getURL("/templates/html.twig"),
+    description: "Default HTML",
+  },
+  {
+    name: "bibliography",
+    url: chrome.runtime.getURL("/templates/bibliography.twig"),
+    description: "Bibliography HTML",
+    css: chrome.runtime.getURL("/templates/bibliography.css"),
+  },
+  {
+    name: "newsletter",
+    url: chrome.runtime.getURL("/templates/newsletter.twig"),
+    description: "Newsletter with buttons HTML",
+    css: chrome.runtime.getURL("/templates/newsletter.css"),
+  },
+  {
+    name: "newsletter2",
+    url: chrome.runtime.getURL("/templates/newsletter2.twig"),
+    description: "Newsletter with links HTML",
+    css: chrome.runtime.getURL("/templates/newsletter.css"),
+  },
 ];
 var localTwigTemplates = availableTwigTemplates;
 
 function loadTemplateSetFromURL(sUrl) {
-    console.log('loadTemplateSetFromURL:' + sUrl);
-    return new Promise(function (resolve, reject) {
+  console.log("loadTemplateSetFromURL:" + sUrl);
+  return new Promise(function (resolve, reject) {
+    if (!sUrl) resolve(availableTwigTemplates);
 
-        if (!sUrl)
-            resolve(availableTwigTemplates);
-
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", sUrl, true);
-        xhr.onload = function () {
-            if (xhr.status == 200) {
-                // console.log('template set loaded: ' + JSON.parse(xhr.response));
-                resolve(xhr.response);
-            }
-            else {
-                reject({
-                    status: xhr.status,
-                    statusText: xhr.statusText
-                });
-            }
-        };
-        xhr.onerror = function () {
-            // Crossdomain request denied
-            if (xhr.status === 0) {
-                console.error(xhr.response)
-            }
-            reject({
-                status: xhr.status,
-                statusText: xhr.statusText
-            });
-        };
-        xhr.crossDomain = true;
-        xhr.withCredentials = false;
-        xhr.send();
-    });
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", sUrl, true);
+    xhr.onload = function () {
+      if (xhr.status == 200) {
+        // console.log('template set loaded: ' + JSON.parse(xhr.response));
+        resolve(xhr.response);
+      } else {
+        reject({
+          status: xhr.status,
+          statusText: xhr.statusText,
+        });
+      }
+    };
+    xhr.onerror = function () {
+      // Crossdomain request denied
+      if (xhr.status === 0) {
+        console.error(xhr.response);
+      }
+      reject({
+        status: xhr.status,
+        statusText: xhr.statusText,
+      });
+    };
+    xhr.crossDomain = true;
+    xhr.withCredentials = false;
+    xhr.send();
+  });
 }
 
 function CleanLocalStorage() {
-    localStorage.TrelloExportCSS = '';
-    localStorage.TrelloExportMode = '';
-    localStorage.TrelloExportListDone = '';
-    localStorage.TrelloExportType = '';
-    localStorage.TrelloExportTwigTemplate = '';
-    localStorage.TrelloExportTwigTemplatesURL = '';
-    localStorage.TrelloExportSelectedColumns = '';
-    $.growl({
-        title: "TrelloExport",
-        message: "LocalStorage settings cleaned successfully. Please close and re-open TrelloExport.",
-        fixed: false
-    });
+  localStorage.TrelloExportCSS = "";
+  localStorage.TrelloExportMode = "";
+  localStorage.TrelloExportListDone = "";
+  localStorage.TrelloExportType = "";
+  localStorage.TrelloExportTwigTemplate = "";
+  localStorage.TrelloExportTwigTemplatesURL = "";
+  localStorage.TrelloExportSelectedColumns = "";
+  $.growl({
+    title: "TrelloExport",
+    message:
+      "LocalStorage settings cleaned successfully. Please close and re-open TrelloExport.",
+    fixed: false,
+  });
 }
 
 /**
@@ -428,17 +474,17 @@ function CleanLocalStorage() {
  * MIT license
  */
 if (!String.prototype.codePointAt) {
-    String.prototype.codePointAt = function(pos) {
-        pos = isNaN(pos) ? 0 : pos;
-        var str = String(this),
-            code = str.charCodeAt(pos),
-            next = str.charCodeAt(pos + 1);
-        // If a surrogate pair
-        if (0xD800 <= code && code <= 0xDBFF && 0xDC00 <= next && next <= 0xDFFF) {
-            return ((code - 0xD800) * 0x400) + (next - 0xDC00) + 0x10000;
-        }
-        return code;
-    };
+  String.prototype.codePointAt = function (pos) {
+    pos = isNaN(pos) ? 0 : pos;
+    var str = String(this),
+      code = str.charCodeAt(pos),
+      next = str.charCodeAt(pos + 1);
+    // If a surrogate pair
+    if (0xd800 <= code && code <= 0xdbff && 0xdc00 <= next && next <= 0xdfff) {
+      return (code - 0xd800) * 0x400 + (next - 0xdc00) + 0x10000;
+    }
+    return code;
+  };
 }
 
 /**
@@ -447,3524 +493,4473 @@ if (!String.prototype.codePointAt) {
  * @return {*}
  */
 function html_encode(string) {
-    var ret_val = '';
-    for (var i = 0; i < string.length; i++) {
-        var iC = string.codePointAt(i);
-        if (iC > 127) {
-            ret_val += '&#' + string.codePointAt(i) + ';';
-        } else {
-            switch (iC) {
-                case 34:
-                    ret_val += "&quot;";
-                    break;
-                case 38:
-                    ret_val += "&amp;";
-                    break;
-                case 60:
-                    ret_val += "&lt;";
-                    break;
-                case 62:
-                    ret_val += "&gt;";
-                    break;
-                default:
-                    ret_val += string.charAt(i);
-                    break;
-            }
-        }
+  var ret_val = "";
+  for (var i = 0; i < string.length; i++) {
+    var iC = string.codePointAt(i);
+    if (iC > 127) {
+      ret_val += "&#" + string.codePointAt(i) + ";";
+    } else {
+      switch (iC) {
+        case 34:
+          ret_val += "&quot;";
+          break;
+        case 38:
+          ret_val += "&amp;";
+          break;
+        case 60:
+          ret_val += "&lt;";
+          break;
+        case 62:
+          ret_val += "&gt;";
+          break;
+        default:
+          ret_val += string.charAt(i);
+          break;
+      }
     }
-    return ret_val;
+  }
+  return ret_val;
 }
 
-String.prototype.replaceAll = function(search, replacement) {
-    var target = this;
-    return target.replace(new RegExp(search, 'g'), replacement);
+String.prototype.replaceAll = function (search, replacement) {
+  var target = this;
+  return target.replace(new RegExp(search, "g"), replacement);
 };
 
 function escape4XML(s) {
-    s = s.replaceAll('"', '&quot;');
-    s = s.replaceAll("'", '&apos;');
-    s = s.replaceAll('<', '&lt;');
-    s = s.replaceAll('>', '&gt;');
-    s = s.replaceAll('&', '&amp;');
-    s = html_encode(s);
-    return s;
+  s = s.replaceAll('"', "&quot;");
+  s = s.replaceAll("'", "&apos;");
+  s = s.replaceAll("<", "&lt;");
+  s = s.replaceAll(">", "&gt;");
+  s = s.replaceAll("&", "&amp;");
+  s = html_encode(s);
+  return s;
 }
 
 function sortByKeyDesc(array, key) {
-    return array.sort(function(a, b) {
-        var x = a[key];
-        var y = b[key];
-        return ((x > y) ? -1 : ((x < y) ? 1 : 0));
-    });
+  return array.sort(function (a, b) {
+    var x = a[key];
+    var y = b[key];
+    return x > y ? -1 : x < y ? 1 : 0;
+  });
 }
 
 var $,
-    byteString,
-    xlsx,
-    ArrayBuffer,
-    Uint8Array,
-    actionsCreateCard = [],
-    actionsMoveCard = [],
-    actionsCommentCard = [],
-    idBoard,
-    nProcessedBoards = 0,
-    nProcessedLists = 0,
-    nProcessedCards = 0,
-    $excel_btn,
-    dataLimit = 1000, // limit the number of items retrieved from Trello (1000 is max allowed by Trello API server)
-    MAXCHARSPERCELL = 32767,
-    exportlists = [],
-    exportboards = [],
-    exportcards = [],
-    nameListDone = "Done",
-    filterListsNames = [],
-    pageSize = 25, // cfr https://trello.com/c/8MJOLSCs/10-limit-actions-for-cards-requests
-    customFields = [];
-    var allColumns = null;
+  byteString,
+  xlsx,
+  ArrayBuffer,
+  Uint8Array,
+  actionsCreateCard = [],
+  actionsMoveCard = [],
+  actionsCommentCard = [],
+  idBoard,
+  nProcessedBoards = 0,
+  nProcessedLists = 0,
+  nProcessedCards = 0,
+  $excel_btn,
+  dataLimit = 1000, // limit the number of items retrieved from Trello (1000 is max allowed by Trello API server)
+  MAXCHARSPERCELL = 32767,
+  exportlists = [],
+  exportboards = [],
+  exportcards = [],
+  nameListDone = "Done",
+  filterListsNames = [],
+  pageSize = 25, // cfr https://trello.com/c/8MJOLSCs/10-limit-actions-for-cards-requests
+  customFields = [];
+var allColumns = null;
 
 function sheet_from_array_of_arrays(data, opts) {
-    var ws = {};
-    var range = {
-        s: {
-            c: 10000000,
-            r: 10000000
-        },
-        e: {
-            c: 0,
-            r: 0
-        }
-    };
-    for (var R = 0; R != data.length; ++R) {
-        for (var C = 0; C != data[R].length; ++C) {
-            if (range.s.r > R) range.s.r = R;
-            if (range.s.c > C) range.s.c = C;
-            if (range.e.r < R) range.e.r = R;
-            if (range.e.c < C) range.e.c = C;
-            var cell = {
-                v: data[R][C]
-            };
-            if (cell.v === null) continue;
-            var cell_ref = XLSX.utils.encode_cell({
-                c: C,
-                r: R
-            });
+  var ws = {};
+  var range = {
+    s: {
+      c: 10000000,
+      r: 10000000,
+    },
+    e: {
+      c: 0,
+      r: 0,
+    },
+  };
+  for (var R = 0; R != data.length; ++R) {
+    for (var C = 0; C != data[R].length; ++C) {
+      if (range.s.r > R) range.s.r = R;
+      if (range.s.c > C) range.s.c = C;
+      if (range.e.r < R) range.e.r = R;
+      if (range.e.c < C) range.e.c = C;
+      var cell = {
+        v: data[R][C],
+      };
+      if (cell.v === null) continue;
+      var cell_ref = XLSX.utils.encode_cell({
+        c: C,
+        r: R,
+      });
 
-            if (typeof cell.v === 'number') cell.t = 'n';
-            else if (typeof cell.v === 'boolean') cell.t = 'b';
-            else if (cell.v instanceof Date) {
-                cell.t = 'n';
-                cell.z = XLSX.SSF._table[14];
-                cell.v = datenum(cell.v);
-            } else cell.t = 's';
+      if (typeof cell.v === "number") cell.t = "n";
+      else if (typeof cell.v === "boolean") cell.t = "b";
+      else if (cell.v instanceof Date) {
+        cell.t = "n";
+        cell.z = XLSX.SSF._table[14];
+        cell.v = datenum(cell.v);
+      } else cell.t = "s";
 
-            ws[cell_ref] = cell;
-        }
+      ws[cell_ref] = cell;
     }
-    if (range.s.c < 10000000) ws['!ref'] = XLSX.utils.encode_range(range);
-    return ws;
+  }
+  if (range.s.c < 10000000) ws["!ref"] = XLSX.utils.encode_range(range);
+  return ws;
 }
 
 function Workbook() {
-    if (!(this instanceof Workbook)) return new Workbook();
-    this.SheetNames = [];
-    this.Sheets = {};
+  if (!(this instanceof Workbook)) return new Workbook();
+  this.SheetNames = [];
+  this.Sheets = {};
 }
 
 function dd(s) {
-    return ('0' + s).slice(-2);
+  return ("0" + s).slice(-2);
 }
 
 function s2ab(s) {
-    var buf = new ArrayBuffer(s.length);
-    var view = new Uint8Array(buf);
-    for (var i = 0; i != s.length; ++i) view[i] = s.charCodeAt(i) & 0xFF;
-    return buf;
+  var buf = new ArrayBuffer(s.length);
+  var view = new Uint8Array(buf);
+  for (var i = 0; i != s.length; ++i) view[i] = s.charCodeAt(i) & 0xff;
+  return buf;
 }
 
-if (typeof String.prototype.startsWith != 'function') {
-    String.prototype.startsWith = function(str) {
-        return this.indexOf(str) === 0;
-    };
+if (typeof String.prototype.startsWith != "function") {
+  String.prototype.startsWith = function (str) {
+    return this.indexOf(str) === 0;
+  };
 }
 
-if (typeof String.prototype.stringContains != 'function') {
-    String.prototype.stringContains = function(str) {
-        // console.log(this + ' CONTAINS ' + str + ' ? ' + this.indexOf(str) >= 0);
-        return this.indexOf(str) >= 0;
-    };
+if (typeof String.prototype.stringContains != "function") {
+  String.prototype.stringContains = function (str) {
+    // console.log(this + ' CONTAINS ' + str + ' ? ' + this.indexOf(str) >= 0);
+    return this.indexOf(str) >= 0;
+  };
 }
 
 if (!String.prototype.endsWith) {
-    String.prototype.endsWith = function(search, this_len) {
-      if (this_len === undefined || this_len > this.length) {
-        this_len = this.length;
-      }
-      return this.substring(this_len - search.length, this_len) === search;
-    };
-  }
-  
+  String.prototype.endsWith = function (search, this_len) {
+    if (this_len === undefined || this_len > this.length) {
+      this_len = this.length;
+    }
+    return this.substring(this_len - search.length, this_len) === search;
+  };
+}
+
 async function getCommentCardActions(boardID, idCard) {
-    for (var n = 0; n < actionsCommentCard.length; n++) {
-        if (actionsCommentCard[n].card === idCard) {
-            var query = Enumerable.From(actionsCommentCard[n].data)
-                .Where(function(x) {
-                    if (x.data.card) {
-                        return x.data.card.id == idCard;
-                    }
-                })
-                .OrderByDescending(function(x) {
-                    return x.date;
-                })
-                .ToArray();
-            return query.length > 0 ? query : false;
-        }
+  for (var n = 0; n < actionsCommentCard.length; n++) {
+    if (actionsCommentCard[n].card === idCard) {
+      var query = Enumerable.From(actionsCommentCard[n].data)
+        .Where(function (x) {
+          if (x.data.card) {
+            return x.data.card.id == idCard;
+          }
+        })
+        .OrderByDescending(function (x) {
+          return x.date;
+        })
+        .ToArray();
+      return query.length > 0 ? query : false;
     }
-    
-    try {
-        const actionsData = await $.ajax({
-            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: 'https://trello.com/1/card/' + idCard + '/actions?filter=commentCard,copyCommentCard&limit=' + dataLimit,
-            // url:'https://trello.com/1/boards/' + boardID + '/actions?filter=commentCard,copyCommentCard&limit=' + dataLimit,
-            dataType: 'json'
-        });
-        
-        var a = {
-            card: idCard,
-            data: actionsData,
-        };
-        actionsCommentCard.push(a);
-        
-        var selectedActions = null;
-        for (var i = 0; i < actionsCommentCard.length; i++) {
-            if (actionsCommentCard[i].card === idCard) {
-                selectedActions = actionsCommentCard[i].data;
-                break;
-            }
-        }
-        var query2 = Enumerable.From(selectedActions)
-            .Where(function(x) {
-                if (x.data.card) {
-                    return x.data.card.id == idCard;
-                }
-            })
-            .OrderByDescending(function(x) {
-                return x.date;
-            })
-            .ToArray();
-        return query2.length > 0 ? query2 : false;
-    } catch (error) {
-        console.error('Error fetching comment card actions:', error);
-        return false;
+  }
+
+  try {
+    const actionsData = await $.ajax({
+      headers: { "x-trello-user-agent-extension": "TrelloExport" },
+      url:
+        "https://trello.com/1/card/" +
+        idCard +
+        "/actions?filter=commentCard,copyCommentCard&limit=" +
+        dataLimit,
+      // url:'https://trello.com/1/boards/' + boardID + '/actions?filter=commentCard,copyCommentCard&limit=' + dataLimit,
+      dataType: "json",
+    });
+
+    var a = {
+      card: idCard,
+      data: actionsData,
+    };
+    actionsCommentCard.push(a);
+
+    var selectedActions = null;
+    for (var i = 0; i < actionsCommentCard.length; i++) {
+      if (actionsCommentCard[i].card === idCard) {
+        selectedActions = actionsCommentCard[i].data;
+        break;
+      }
     }
+    var query2 = Enumerable.From(selectedActions)
+      .Where(function (x) {
+        if (x.data.card) {
+          return x.data.card.id == idCard;
+        }
+      })
+      .OrderByDescending(function (x) {
+        return x.date;
+      })
+      .ToArray();
+    return query2.length > 0 ? query2 : false;
+  } catch (error) {
+    console.error("Error fetching comment card actions:", error);
+    return false;
+  }
 }
 
 async function getCreateCardAction(boardID, idCard) {
-    for (var n = 0; n < actionsCreateCard.length; n++) {
-        if (actionsCreateCard[n].board === boardID) {
-            var query = Enumerable.From(actionsCreateCard[n].data)
-                .Where(function(x) {
-                    if (x.data.card) {
-                        return x.data.card.id == idCard;
-                    }
-                })
-                .ToArray();
-            return query.length > 0 ? query[0] : false;
-        }
+  for (var n = 0; n < actionsCreateCard.length; n++) {
+    if (actionsCreateCard[n].board === boardID) {
+      var query = Enumerable.From(actionsCreateCard[n].data)
+        .Where(function (x) {
+          if (x.data.card) {
+            return x.data.card.id == idCard;
+          }
+        })
+        .ToArray();
+      return query.length > 0 ? query[0] : false;
     }
-    
-    try {
-        const actionsData = await $.ajax({
-            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: 'https://trello.com/1/boards/' + boardID + '/actions?filter=createCard&limit=' + dataLimit,
-            dataType: 'json'
-        });
-        
-        var a = {
-            board: boardID,
-            data: actionsData,
-        };
-        actionsCreateCard.push(a);
-        
-        var selectedActions = null;
-        // get the right actions for board
-        for (var i = 0; i < actionsCreateCard.length; i++) {
-            if (actionsCreateCard[i].board === boardID) {
-                selectedActions = actionsCreateCard[i].data;
-                break;
-            }
-        }
-        var query2 = Enumerable.From(selectedActions)
-            .Where(function(x) {
-                if (x.data.card) {
-                    return x.data.card.id == idCard;
-                }
-            })
-            .ToArray();
-        return query2.length > 0 ? query2[0] : false;
-    } catch (error) {
-        console.error('Error fetching create card action:', error);
-        return false;
+  }
+
+  try {
+    const actionsData = await $.ajax({
+      headers: { "x-trello-user-agent-extension": "TrelloExport" },
+      url:
+        "https://trello.com/1/boards/" +
+        boardID +
+        "/actions?filter=createCard&limit=" +
+        dataLimit,
+      dataType: "json",
+    });
+
+    var a = {
+      board: boardID,
+      data: actionsData,
+    };
+    actionsCreateCard.push(a);
+
+    var selectedActions = null;
+    // get the right actions for board
+    for (var i = 0; i < actionsCreateCard.length; i++) {
+      if (actionsCreateCard[i].board === boardID) {
+        selectedActions = actionsCreateCard[i].data;
+        break;
+      }
     }
+    var query2 = Enumerable.From(selectedActions)
+      .Where(function (x) {
+        if (x.data.card) {
+          return x.data.card.id == idCard;
+        }
+      })
+      .ToArray();
+    return query2.length > 0 ? query2[0] : false;
+  } catch (error) {
+    console.error("Error fetching create card action:", error);
+    return false;
+  }
 }
 
 async function getMoveCardAction(boardID, idCard, nameList) {
-    //console.log('getMoveCardAction ' + idCard + ' to list ' + nameList);
-    for (var n = 0; n < actionsMoveCard.length; n++) {
-        if (actionsMoveCard[n].board === boardID) {
-            var query = Enumerable.From(actionsMoveCard[n].data)
-                .Where(function(x) {
-                    if (x.data.card && x.data.listAfter) {
-                        if (x.data.card.id == idCard)
-                            return x.data.card.id == idCard && x.data.listAfter.name.toLowerCase().stringContains(nameList.trim().toLowerCase());
-                        //return x.data.card.id == idCard && x.data.listAfter.name == nameList;
-                    }
-                })
-                .OrderByDescending(function(x) {
-                    return x.date;
-                })
-                .ToArray();
-            //console.log('query.length: ' + query.length);
-            return query.length > 0 ? query[0] : false;
-        }
+  //console.log('getMoveCardAction ' + idCard + ' to list ' + nameList);
+  for (var n = 0; n < actionsMoveCard.length; n++) {
+    if (actionsMoveCard[n].board === boardID) {
+      var query = Enumerable.From(actionsMoveCard[n].data)
+        .Where(function (x) {
+          if (x.data.card && x.data.listAfter) {
+            if (x.data.card.id == idCard)
+              return (
+                x.data.card.id == idCard &&
+                x.data.listAfter.name
+                  .toLowerCase()
+                  .stringContains(nameList.trim().toLowerCase())
+              );
+            //return x.data.card.id == idCard && x.data.listAfter.name == nameList;
+          }
+        })
+        .OrderByDescending(function (x) {
+          return x.date;
+        })
+        .ToArray();
+      //console.log('query.length: ' + query.length);
+      return query.length > 0 ? query[0] : false;
     }
-    
-    try {
-        const actionsData = await $.ajax({
-            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: 'https://trello.com/1/boards/' + boardID + '/actions?filter=updateCard&limit=' + dataLimit,
-            dataType: 'json'
-        });
-        
-        var a = {
-            board: boardID,
-            data: actionsData,
-        };
-        actionsMoveCard.push(a);
-        
-        var selectedActions = null;
-        // get the right actions for board
-        for (var i = 0; i < actionsMoveCard.length; i++) {
-            if (actionsMoveCard[i].board === boardID) {
-                selectedActions = actionsMoveCard[i].data;
-                break;
-            }
-        }
-        var query2 = Enumerable.From(selectedActions)
-            .Where(function(x) {
-                if (x.data.card && x.data.listAfter) {
-                    return x.data.card.id == idCard && x.data.listAfter.name == nameList;
-                }
-            })
-            .OrderByDescending(function(x) {
-                return x.date;
-            })
-            .ToArray();
-        return query2.length > 0 ? query2[0] : false;
-    } catch (error) {
-        console.error('Error fetching move card action:', error);
-        return false;
+  }
+
+  try {
+    const actionsData = await $.ajax({
+      headers: { "x-trello-user-agent-extension": "TrelloExport" },
+      url:
+        "https://trello.com/1/boards/" +
+        boardID +
+        "/actions?filter=updateCard&limit=" +
+        dataLimit,
+      dataType: "json",
+    });
+
+    var a = {
+      board: boardID,
+      data: actionsData,
+    };
+    actionsMoveCard.push(a);
+
+    var selectedActions = null;
+    // get the right actions for board
+    for (var i = 0; i < actionsMoveCard.length; i++) {
+      if (actionsMoveCard[i].board === boardID) {
+        selectedActions = actionsMoveCard[i].data;
+        break;
+      }
     }
+    var query2 = Enumerable.From(selectedActions)
+      .Where(function (x) {
+        if (x.data.card && x.data.listAfter) {
+          return x.data.card.id == idCard && x.data.listAfter.name == nameList;
+        }
+      })
+      .OrderByDescending(function (x) {
+        return x.date;
+      })
+      .ToArray();
+    return query2.length > 0 ? query2[0] : false;
+  } catch (error) {
+    console.error("Error fetching move card action:", error);
+    return false;
+  }
 }
 
 function searchupdateCheckItemStateOnCardAction(checkitemid, actions) {
-    var completedObject = {};
-    $.each(actions, function(j, action) {
-        if (action.type == 'updateCheckItemStateOnCard') {
-            if (action.data.checkItem.id == checkitemid) {
-                var d = new Date(action.date);
-                if (d) {
-                    var sActionDate = d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
-                    completedObject.date = sActionDate;
-                }
-                if (action.memberCreator !== undefined) {
-                    completedObject.by = (action.memberCreator.fullName !== undefined ? action.memberCreator.fullName : action.memberCreator.username);
-                } else {
-                    completedObject.by = '';
-                }
-                return completedObject;
-            }
+  var completedObject = {};
+  $.each(actions, function (j, action) {
+    if (action.type == "updateCheckItemStateOnCard") {
+      if (action.data.checkItem.id == checkitemid) {
+        var d = new Date(action.date);
+        if (d) {
+          var sActionDate =
+            d.toLocaleDateString() + " " + d.toLocaleTimeString();
+          completedObject.date = sActionDate;
         }
-    });
-    return completedObject;
+        if (action.memberCreator !== undefined) {
+          completedObject.by =
+            action.memberCreator.fullName !== undefined
+              ? action.memberCreator.fullName
+              : action.memberCreator.username;
+        } else {
+          completedObject.by = "";
+        }
+        return completedObject;
+      }
+    }
+  });
+  return completedObject;
 }
 
 async function TrelloExportOptions() {
+  try {
+    // Check if extension context is still valid
+    if (!chrome.runtime?.id) {
+      console.error("[TrelloExport] Extension context invalidated");
+      alert(
+        "TrelloExport extension has been updated or reloaded. Please refresh the page and try again.",
+      );
+      return;
+    }
+
+    exportboards = []; // reset
+    exportlists = [];
+    exportcards = [];
+    filterListsNames = [];
+    nProcessedBoards = 0;
+    nProcessedLists = 0;
+    nProcessedCards = 0;
+    idBoard = document.location.pathname.split("/")[2];
+
+    var columnHeadings = [];
+    customFields = []; // reset
+
+    // Try to load column headings with error handling
     try {
-        // Check if extension context is still valid
-        if (!chrome.runtime?.id) {
-            console.error('[TrelloExport] Extension context invalidated');
-            alert('TrelloExport extension has been updated or reloaded. Please refresh the page and try again.');
-            return;
+      columnHeadings = await setColumnHeadings(0);
+      console.log(
+        "[TrelloExport] Loaded " + columnHeadings.length + " column headings",
+      );
+    } catch (error) {
+      console.error("[TrelloExport] Error loading column headings:", error);
+      // Fallback to default columns if API fails
+      columnHeadings = [
+        "Organization",
+        "Board",
+        "List",
+        "Card #",
+        "Title",
+        "Link",
+        "Description",
+        "Total Checklist items",
+        "Completed Checklist items",
+        "Checklists",
+        "NumberOfComments",
+        "Comments",
+        "Attachments",
+        "Votes",
+        "Spent",
+        "Estimate",
+        "Points Estimate",
+        "Points Consumed",
+        "Created",
+        "CreatedBy",
+        "LastActivity",
+        "Due",
+        "Done",
+        "DoneBy",
+        "DoneTime",
+        "Members",
+        "Labels",
+      ];
+      $.growl.warning({
+        title: "TrelloExport",
+        message: "Using default columns due to loading error",
+      });
+    }
+
+    // https://github.com/davidstutz/bootstrap-multiselect
+    var options = [];
+    for (var x = 0; x < columnHeadings.length; x++) {
+      var isSelected = "selected";
+      // 1.9.54 saved selected columns
+      if (localStorage.TrelloExportSelectedColumns) {
+        isSelected = "";
+        var savedOptions = localStorage.TrelloExportSelectedColumns.split(",");
+        if ($.inArray(columnHeadings[x], savedOptions) > -1) {
+          isSelected = "selected";
         }
+      }
+      var o =
+        '<option value="' +
+        columnHeadings[x] +
+        '" ' +
+        (isSelected === "selected" ? 'selected="selected"' : "") +
+        ">" +
+        columnHeadings[x] +
+        "</option>";
+      options.push(o);
+    }
 
-        exportboards = []; // reset
-        exportlists = [];
-        exportcards = [];
-        filterListsNames = [];
-        nProcessedBoards = 0;
-        nProcessedLists = 0;
-        nProcessedCards = 0;
-        idBoard = document.location.pathname.split('/')[2];
+    var theCSS =
+      chrome.runtime.getURL("/templates/default.css") ||
+      "https://trapias.github.io/assets/TrelloExport/default.css";
+    if (
+      localStorage.TrelloExportCSS &&
+      !localStorage.TrelloExportCSS.startsWith("chrome")
+    )
+      theCSS = localStorage.TrelloExportCSS;
 
-        var columnHeadings = [];
-        customFields = []; // reset
-        
-        // Try to load column headings with error handling
-        try {
-            columnHeadings = await setColumnHeadings(0);
-            console.log('[TrelloExport] Loaded ' + columnHeadings.length + ' column headings');
-        } catch (error) {
-            console.error('[TrelloExport] Error loading column headings:', error);
-            // Fallback to default columns if API fails
-            columnHeadings = [
-                'Organization', 'Board', 'List', 'Card #', 'Title', 'Link', 'Description',
-                'Total Checklist items', 'Completed Checklist items', 'Checklists',
-                'NumberOfComments', 'Comments', 'Attachments', 'Votes', 'Spent', 'Estimate',
-                'Points Estimate', 'Points Consumed', 'Created', 'CreatedBy', 'LastActivity', 'Due',
-                'Done', 'DoneBy', 'DoneTime', 'Members', 'Labels'
-            ];
-            $.growl.warning({
-                title: "TrelloExport",
-                message: "Using default columns due to loading error"
-            });
-        }
+    var selectedMode = "XLSX";
+    if (localStorage.TrelloExportMode)
+      selectedMode = localStorage.TrelloExportMode;
 
-        // https://github.com/davidstutz/bootstrap-multiselect
-        var options = [];
-        for (var x = 0; x < columnHeadings.length; x++) {
-            var isSelected = "selected";
-        // 1.9.54 saved selected columns
-        if (localStorage.TrelloExportSelectedColumns) {
-            isSelected = '';
-            var savedOptions = localStorage.TrelloExportSelectedColumns.split(',');
-            if ($.inArray(columnHeadings[x], savedOptions) > -1) {
-                isSelected = "selected";
-            }
-        }
-        var o = '<option value="' + columnHeadings[x] + '" ' + (isSelected === 'selected' ? 'selected="selected"' : '') + '>' + columnHeadings[x] + '</option>';
-        options.push(o);
-        }
+    // nameListDone
+    if (localStorage.TrelloExportListDone)
+      nameListDone = localStorage.TrelloExportListDone;
 
-        var theCSS = chrome.runtime.getURL('/templates/default.css') || 'https://trapias.github.io/assets/TrelloExport/default.css';
-        if (localStorage.TrelloExportCSS && !localStorage.TrelloExportCSS.startsWith('chrome'))
-        theCSS = localStorage.TrelloExportCSS;
+    var selectedType = "board";
+    if (localStorage.TrelloExportType)
+      selectedType = localStorage.TrelloExportType;
 
-        var selectedMode = 'XLSX';
-        if (localStorage.TrelloExportMode)
-        selectedMode = localStorage.TrelloExportMode;
+    var twigTemplate = chrome.runtime.getURL("/templates/html.twig");
+    if (localStorage.TrelloExportTwigTemplate)
+      twigTemplate = localStorage.TrelloExportTwigTemplate;
 
-        // nameListDone
-        if (localStorage.TrelloExportListDone)
-        nameListDone = localStorage.TrelloExportListDone;
+    // load templates from URL, e.g. https://www.trapias.it/assets/TrelloExport/templates.json
+    // Default to the public template set so HTML exports reference publicly-hosted (portable) CSS
+    // over clean HTTPS, instead of chrome-extension:// URLs that don't load when the exported file
+    // is opened standalone. The user can override this with their own set (saved in localStorage).
+    var DEFAULT_TEMPLATE_SET_URL =
+      "https://www.trapias.it/assets/TrelloExport/templates.json";
+    var templateSetURL = DEFAULT_TEMPLATE_SET_URL;
+    if (localStorage.TrelloExportTwigTemplatesURL)
+      templateSetURL = localStorage.TrelloExportTwigTemplatesURL;
 
-        var selectedType = 'board';
-        if (localStorage.TrelloExportType)
-        selectedType = localStorage.TrelloExportType;
-
-        var twigTemplate = chrome.runtime.getURL('/templates/html.twig');
-        if (localStorage.TrelloExportTwigTemplate)
-        twigTemplate = localStorage.TrelloExportTwigTemplate;
-
-        // load templates from URL, e.g. https://trapias.github.io/assets/TrelloExport/templates.json
-        var templateSetURL = '';
-        if (localStorage.TrelloExportTwigTemplatesURL) {
-        templateSetURL = localStorage.TrelloExportTwigTemplatesURL;
-
-        loadTemplateSetFromURL(templateSetURL).then(function(tplset) {
-            var jtplset = JSON.parse(tplset);
-            availableTwigTemplates = jtplset.templates;
-            // console.log('availableTwigTemplates = ' + availableTwigTemplates);
-            $.growl({
-                title: "TrelloExport",
-                message: "Templates loaded successfully",
-                fixed: false
-            });
-        }, function(err) {
-            console.error('ERROR: ' + err);
-        });
-        }
-
-        var availableTwigTemplatesOptions = [];
-        for (var t = 0; t < availableTwigTemplates.length; t++) {
-        availableTwigTemplatesOptions.push('<option value="' + availableTwigTemplates[t].url + '">' + availableTwigTemplates[t].description + '</option>');
-        }
-
-        var customFieldsON = false;
-        if (localStorage.TrelloExportCustomFields)
-        customFieldsON = true;
-
-        var sDialog = '<span class="half"><h1>TrelloExport ' + VERSION + '</h1></span><span class="half blog-link"><h3><a target="_blank" href="https://github.com/trapias/TrelloExport/wiki">Help</a>&nbsp;&nbsp;&nbsp;<a target="_blank" href="https://trelloexport.trapias.it/blog/">Read the Blog!</a></h3></span><table id="optionslist">' +
-        '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Choose the type of file you want to export">Export to:</span></td><td><select id="exportmode"><option value="XLSX">Excel</option><option value="MD">Markdown</option><option value="HTML">HTML</option><option value="OPML">OPML</option><option value="CSV">CSV</option></select></td></tr>' +
-        '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Check all the kinds of items you want to export">Export:</span></td><td><input type="checkbox" id="exportArchived" title="Export archived items">Archived items ' +
-        '<input type="checkbox" id="comments" title="Export comments">Comments<br/><input type="checkbox" id="checklists" title="Export checklists">Checklists <input type="checkbox" id="attachments" title="Export attachments">Attachments  <input type="checkbox" id="customfields" ' + (customFieldsON ? 'checked' : '') + ' title="Export Custom Fields">Custom Fields</td></tr>' +
-        '<tr id="cklAsRowsRow"><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Create one Excel row per each card, checklist item, label or card member">One row per each:</span></td><td><input type="radio" id="cardsAsRows" checked name="asrows" value="0"> <label for="cardsAsRows" >Card</label>  <input type="radio" id="cklAsRows" name="asrows" value="1"> <label for="cklAsRows">Checklist item</label>  <input type="radio" id="lblAsRows" name="asrows" value="2"> <label for="lblAsRows">Label</label>  <input type="radio" id="membersAsRows" name="asrows" value="3"> <label for="membersAsRows">Member</label>  </td></tr>' +
-        '<tr id="xlsColumns">' +
-        '<td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Choose columns to be exported to Excel">Export columns</span></td>' +
-        '<td><select multiple="multiple" id="selectedColumns">' + options.join('') + '</select></td>' +
-        '</tr>' +
-        '<tr id="ckHTMLCardInfoRow" style="display:none"><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Set options for the target HTML">Options:</span></td><td><input type="checkbox" checked id="ckHTMLCardInfo" title="Export card info"> Export card info (created, createdby) <br/><input type="checkbox" checked id="chkHTMLInlineImages" title="Show attachment images"> Show attachment images' + '</td></tr>' +
-        '<tr id="renderingOptions" style="display:none"><td><span>Rendering Options:</span></td><td>Stylesheet: <input id="trelloExportCss" type="text" name="css" value="' + theCSS + '"> ' +
-        '<br>Template set:<input type="text" id="templateSetURL" placeholder="Insert URL or leave blank" title="Template-set URL - leave blank to use local templates" value="' + templateSetURL + '"><br>Template: <select id="twigTemplate" name="twigTemplate">' +
-        availableTwigTemplatesOptions.join(',') +
-        '</select></td></tr>' +
-        '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Set the List name string used to recognize your completed lists. See https://trapias.github.io/blog/trelloexport-1-9-13">Done lists name:</span></td><td><input type="text" size="4" name="setnameListDone" id="setnameListDone" value="' + nameListDone + '"  placeholder="Set string or leave empty"></td></tr>' +
-        '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Only include items whose name contains the specified string">Filter:</span></td><td>' +
-        '<select id="filterMode"><option value="List">On List name</option><option value="Label">On Label name</option><option value="Card">On card name</option></select>' +
-        '<br/><input type="checkbox" id="chkANDORFilter"> <span title="Check to match all filters with an AND condition, uncheck to match any filter with an OR condition">Enable AND filter</span><br/>' +
-        '<input type="text" size="30" name="filterListsNames" class="filterListsNames" value="" placeholder="Set string or leave empty" /></td></tr>' +
-        '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Choose what data to export">Type of export:</span></td><td><select id="exporttype"><option value="board">Current Board</option><option value="list">Select Lists in current Board</option><option value="boards">Multiple Boards</option><option value="cards">Select cards in a list</option></select></td></tr>' +
-        '</table>';
-
-        var modal = new tingle.modal({
-        footer: true,
-        stickyFooter: true,
-        closeMethods: ['overlay', 'button', 'escape'],
-        closeLabel: "Close",
-        // cssClass: ['custom-class-1', 'custom-class-2'],
-        onOpen: function() {
-            // Small delay to ensure DOM is ready
-            setTimeout(function() {
-                initializeModal();
-            }, 100);
+    if (templateSetURL) {
+      loadTemplateSetFromURL(templateSetURL).then(
+        function (tplset) {
+          var jtplset = JSON.parse(tplset);
+          availableTwigTemplates = jtplset.templates;
+          // The template-set load is async, but the #twigTemplate dropdown was already built
+          // synchronously below with the local templates. Rebuild it now with the remote set and
+          // restore the saved selection (falling back to the first template if it isn't in this set),
+          // otherwise $('#twigTemplate').val() ends up null on a fresh dialog and the export silently
+          // uses the built-in default template + its chrome-extension:// CSS (HTML export had no styles).
+          var remoteOptions = [];
+          for (var rt = 0; rt < availableTwigTemplates.length; rt++) {
+            remoteOptions.push(
+              '<option value="' +
+                availableTwigTemplates[rt].url +
+                '">' +
+                availableTwigTemplates[rt].description +
+                "</option>",
+            );
+          }
+          $("#twigTemplate").empty().append(remoteOptions.join(""));
+          $("#twigTemplate").val(twigTemplate);
+          if (!$("#twigTemplate").val())
+            $("#twigTemplate").prop("selectedIndex", 0);
+          $.growl({
+            title: "TrelloExport",
+            message: "Templates loaded successfully",
+            fixed: false,
+          });
         },
-        // onClose: function() {
-        //     // console.log('modal closed');
-        // },
-        beforeClose: function() {
-            return true; // close the modal
-            // return false; // nothing happens
-        }
-        });
+        function (err) {
+          console.error("ERROR: " + err);
+        },
+      );
+    }
 
-        modal.setContent(sDialog);
-        modal.setFooterContent('<span class="sponsor"><a target="_new" href="https://bridge24.com/trello/?afmc=1w">Need interactive charts or custom reports for your cards? Try Bridge24! <img src="https://bridge24.com/wp-content/uploads/2017/12/bridge24-logo-header_dark-grey_2x.png" /></a></span>');
-        modal.addFooterBtn('Close', 'tingle-btn tingle-btn--default tingle-btn--pull-right', function() {
+    var availableTwigTemplatesOptions = [];
+    for (var t = 0; t < availableTwigTemplates.length; t++) {
+      availableTwigTemplatesOptions.push(
+        '<option value="' +
+          availableTwigTemplates[t].url +
+          '">' +
+          availableTwigTemplates[t].description +
+          "</option>",
+      );
+    }
+
+    var customFieldsON = false;
+    if (localStorage.TrelloExportCustomFields) customFieldsON = true;
+
+    var sDialog =
+      '<span class="half"><h1>TrelloExport ' +
+      VERSION +
+      '</h1></span><span class="half blog-link"><h3><a target="_blank" href="https://github.com/trapias/TrelloExport/wiki">Help</a>&nbsp;&nbsp;&nbsp;<a target="_blank" href="https://trelloexport.trapias.it/blog/">Read the Blog!</a></h3></span><table id="optionslist">' +
+      '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Choose the type of file you want to export">Export to:</span></td><td><select id="exportmode"><option value="XLSX">Excel</option><option value="MD">Markdown</option><option value="HTML">HTML</option><option value="OPML">OPML</option><option value="CSV">CSV</option></select></td></tr>' +
+      '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Check all the kinds of items you want to export">Export:</span></td><td><input type="checkbox" id="exportArchived" title="Export archived items">Archived items ' +
+      '<input type="checkbox" id="comments" title="Export comments">Comments<br/><input type="checkbox" id="checklists" title="Export checklists">Checklists <input type="checkbox" id="attachments" title="Export attachments">Attachments  <input type="checkbox" id="customfields" ' +
+      (customFieldsON ? "checked" : "") +
+      ' title="Export Custom Fields">Custom Fields</td></tr>' +
+      '<tr id="cklAsRowsRow"><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Create one Excel row per each card, checklist item, label or card member">One row per each:</span></td><td><input type="radio" id="cardsAsRows" checked name="asrows" value="0"> <label for="cardsAsRows" >Card</label>  <input type="radio" id="cklAsRows" name="asrows" value="1"> <label for="cklAsRows">Checklist item</label>  <input type="radio" id="lblAsRows" name="asrows" value="2"> <label for="lblAsRows">Label</label>  <input type="radio" id="membersAsRows" name="asrows" value="3"> <label for="membersAsRows">Member</label>  </td></tr>' +
+      '<tr id="xlsColumns">' +
+      '<td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Choose columns to be exported to Excel">Export columns</span></td>' +
+      '<td><select multiple="multiple" id="selectedColumns">' +
+      options.join("") +
+      "</select></td>" +
+      "</tr>" +
+      '<tr id="ckHTMLCardInfoRow" style="display:none"><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Set options for the target HTML">Options:</span></td><td><input type="checkbox" checked id="ckHTMLCardInfo" title="Export card info"> Export card info (created, createdby) <br/><input type="checkbox" checked id="chkHTMLInlineImages" title="Show attachment images"> Show attachment images' +
+      "</td></tr>" +
+      '<tr id="renderingOptions" style="display:none"><td><span>Rendering Options:</span></td><td>Stylesheet: <input id="trelloExportCss" type="text" name="css" value="' +
+      theCSS +
+      '"> ' +
+      '<br>Template set:<input type="text" id="templateSetURL" placeholder="Insert URL or leave blank" title="Template-set URL - leave blank to use local templates" value="' +
+      templateSetURL +
+      '"><br>Template: <select id="twigTemplate" name="twigTemplate">' +
+      availableTwigTemplatesOptions.join(",") +
+      "</select></td></tr>" +
+      '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Set the List name string used to recognize your completed lists. See https://trapias.github.io/blog/trelloexport-1-9-13">Done lists name:</span></td><td><input type="text" size="4" name="setnameListDone" id="setnameListDone" value="' +
+      nameListDone +
+      '"  placeholder="Set string or leave empty"></td></tr>' +
+      '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Only include items whose name contains the specified string">Filter:</span></td><td>' +
+      '<select id="filterMode"><option value="List">On List name</option><option value="Label">On Label name</option><option value="Card">On card name</option></select>' +
+      '<br/><input type="checkbox" id="chkANDORFilter"> <span title="Check to match all filters with an AND condition, uncheck to match any filter with an OR condition">Enable AND filter</span><br/>' +
+      '<input type="text" size="30" name="filterListsNames" class="filterListsNames" value="" placeholder="Set string or leave empty" /></td></tr>' +
+      '<tr><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Choose what data to export">Type of export:</span></td><td><select id="exporttype"><option value="board">Current Board</option><option value="list">Select Lists in current Board</option><option value="boards">Multiple Boards</option><option value="cards">Select cards in a list</option></select></td></tr>' +
+      "</table>";
+
+    var modal = new tingle.modal({
+      footer: true,
+      stickyFooter: true,
+      closeMethods: ["overlay", "button", "escape"],
+      closeLabel: "Close",
+      // cssClass: ['custom-class-1', 'custom-class-2'],
+      onOpen: function () {
+        // Small delay to ensure DOM is ready
+        setTimeout(function () {
+          initializeModal();
+        }, 100);
+      },
+      // onClose: function() {
+      //     // console.log('modal closed');
+      // },
+      beforeClose: function () {
+        return true; // close the modal
+        // return false; // nothing happens
+      },
+    });
+
+    modal.setContent(sDialog);
+    modal.setFooterContent(
+      '<span class="sponsor"><a target="_new" href="https://bridge24.com/trello/?afmc=1w">Need interactive charts or custom reports for your cards? Try Bridge24! <img src="https://bridge24.com/wp-content/uploads/2017/12/bridge24-logo-header_dark-grey_2x.png" /></a></span>',
+    );
+    modal.addFooterBtn(
+      "Close",
+      "tingle-btn tingle-btn--default tingle-btn--pull-right",
+      function () {
         modal.close();
-        });
+      },
+    );
 
-        modal.addFooterBtn('Export', 'tingle-btn tingle-btn--trelloexport tingle-btn--pull-right', function() {
-        var mode = $('#exportmode').val();
+    modal.addFooterBtn(
+      "Export",
+      "tingle-btn tingle-btn--trelloexport tingle-btn--pull-right",
+      function () {
+        var mode = $("#exportmode").val();
         localStorage.TrelloExportMode = mode;
-        nameListDone = $('#setnameListDone').val();
+        nameListDone = $("#setnameListDone").val();
         localStorage.TrelloExportListDone = nameListDone;
-        var sfilterListsNames, filters, bexportArchived, bExportComments, bExportChecklists, bExportAttachments, iExcelItemsAsRows, bckHTMLCardInfo, bchkHTMLInlineImages;
-        bexportArchived = $('#exportArchived').is(':checked');
-        bExportComments = $('#comments').is(':checked');
-        bExportChecklists = $('#checklists').is(':checked');
-        bExportAttachments = $('#attachments').is(':checked');
+        var sfilterListsNames,
+          filters,
+          bexportArchived,
+          bExportComments,
+          bExportChecklists,
+          bExportAttachments,
+          iExcelItemsAsRows,
+          bckHTMLCardInfo,
+          bchkHTMLInlineImages;
+        bexportArchived = $("#exportArchived").is(":checked");
+        bExportComments = $("#comments").is(":checked");
+        bExportChecklists = $("#checklists").is(":checked");
+        bExportAttachments = $("#attachments").is(":checked");
         iExcelItemsAsRows = 0;
-        iExcelItemsAsRows = $('input[name=asrows]:checked').val();
-        bckHTMLCardInfo = $('#ckHTMLCardInfo').is(':checked');
-        bchkHTMLInlineImages = $('#chkHTMLInlineImages').is(':checked');
-        var bExportCustomFields = $('#customfields').is(':checked');
+        iExcelItemsAsRows = $("input[name=asrows]:checked").val();
+        bckHTMLCardInfo = $("#ckHTMLCardInfo").is(":checked");
+        bchkHTMLInlineImages = $("#chkHTMLInlineImages").is(":checked");
+        var bExportCustomFields = $("#customfields").is(":checked");
 
-        if (!bExportChecklists && iExcelItemsAsRows.toString() === '1') {
-            // checklist items as rows only available if checklists are exported
-            iExcelItemsAsRows = 0;
+        if (!bExportChecklists && iExcelItemsAsRows.toString() === "1") {
+          // checklist items as rows only available if checklists are exported
+          iExcelItemsAsRows = 0;
         }
         // export type
-        var sexporttype = $('#exporttype').val();
+        var sexporttype = $("#exporttype").val();
         localStorage.TrelloExportType = sexporttype;
 
-        sfilterListsNames = $('.filterListsNames').val();
-        if (sfilterListsNames.trim() !== '') {
-            // parse list name filters
-            filters = sfilterListsNames.split(','); // OR filters
-            for (var nd = 0; nd < filters.length; nd++) {
-                filterListsNames.push(filters[nd].toString().trim());
-            }
+        sfilterListsNames = $(".filterListsNames").val();
+        if (sfilterListsNames.trim() !== "") {
+          // parse list name filters
+          filters = sfilterListsNames.split(","); // OR filters
+          for (var nd = 0; nd < filters.length; nd++) {
+            filterListsNames.push(filters[nd].toString().trim());
+          }
         }
 
         switch (sexporttype) {
-            case 'list':
-                if ($('#choosenlist').length <= 0) {
-                    // console.log('wait for lists to load');
-                    return false;
-                } else {
-                    $('#choosenlist > option:selected').each(function() {
-                        exportlists.push($(this).val());
-                    });
-                }
-                break;
+          case "list":
+            if ($("#choosenlist").length <= 0) {
+              // console.log('wait for lists to load');
+              return false;
+            } else {
+              $("#choosenlist > option:selected").each(function () {
+                exportlists.push($(this).val());
+              });
+            }
+            break;
 
-            case 'boards':
-                if ($('#choosenboards').length <= 0) {
-                    // console.log('wait for lists to load');
-                    return false;
-                } else {
-                    $('#choosenboards > option:selected').each(function() {
-                        exportboards.push($(this).val());
-                    });
-                }
-                break;
+          case "boards":
+            if ($("#choosenboards").length <= 0) {
+              // console.log('wait for lists to load');
+              return false;
+            } else {
+              $("#choosenboards > option:selected").each(function () {
+                exportboards.push($(this).val());
+              });
+            }
+            break;
 
-            case 'cards':
-                // choosenCards
-                if ($('#choosenCards').length <= 0) {
-                    // console.log('wait for cards to load');
-                    return false;
-                } else {
-                    $('#choosenCards > option:selected').each(function() {
-                        exportcards.push($(this).val());
-                    });
-                }
-                break;
+          case "cards":
+            // choosenCards
+            if ($("#choosenCards").length <= 0) {
+              // console.log('wait for cards to load');
+              return false;
+            } else {
+              $("#choosenCards > option:selected").each(function () {
+                exportcards.push($(this).val());
+              });
+            }
+            break;
 
-            case 'board':
-                $('#choosenboards > option:selected').each(function() {
-                    exportboards.push($(this).val());
-                });
-                break;
+          case "board":
+            $("#choosenboards > option:selected").each(function () {
+              exportboards.push($(this).val());
+            });
+            break;
 
-            default:
-                break;
+          default:
+            break;
         }
 
-        if(allColumns === null) {
-            allColumns = $('#selectedColumns option');
+        if (allColumns === null) {
+          allColumns = $("#selectedColumns option");
         }
         //var allColumns = $('#selectedColumns option');
         //console.log('allColumns = ' + JSON.stringify(allColumns));
         var selectedColumns = [];
-        var selectedOptions = $('#selectedColumns option:selected');
-        selectedOptions.each(function() {
-            selectedColumns.push(this.value);
+        var selectedOptions = $("#selectedColumns option:selected");
+        selectedOptions.each(function () {
+          selectedColumns.push(this.value);
         });
         // save selectedColumns
         localStorage.TrelloExportSelectedColumns = selectedColumns;
 
-        var css = $('#trelloExportCss').val();
-        if (!css.startsWith('chrome')) {
-            localStorage.TrelloExportCSS = css;
-            // console.log('save ' + css);
+        var css = $("#trelloExportCss").val();
+        if (!css.startsWith("chrome")) {
+          localStorage.TrelloExportCSS = css;
+          // console.log('save ' + css);
         } else {
-            localStorage.TrelloExportCSS = '';
+          localStorage.TrelloExportCSS = "";
         }
 
         // filterMode
-        var filterMode = $('#filterMode').val();
-        var chkANDORFilter = $('#chkANDORFilter').is(':checked');
+        var filterMode = $("#filterMode").val();
+        var chkANDORFilter = $("#chkANDORFilter").is(":checked");
 
-        var templateURL = $('#twigTemplate').val();
+        var templateURL = $("#twigTemplate").val();
         localStorage.TrelloExportTwigTemplate = templateURL;
 
-        localStorage.TrelloExportTwigTemplatesURL = $('#templateSetURL').val();
+        localStorage.TrelloExportTwigTemplatesURL = $("#templateSetURL").val();
 
         // launch export
-        setTimeout(async function() {
-            try {
-                await loadDataAsync(mode, bexportArchived, bExportComments, bExportChecklists, bExportAttachments, iExcelItemsAsRows, bckHTMLCardInfo, bchkHTMLInlineImages, allColumns, selectedColumns, css, filterMode, bExportCustomFields, templateURL, chkANDORFilter);
-            } catch (error) {
-                console.error('Export failed:', error);
-                $.growl.error({
-                    title: "Export Failed",
-                    message: error.message || "An error occurred during export",
-                    fixed: true
-                });
-            }
+        setTimeout(async function () {
+          try {
+            await loadDataAsync(
+              mode,
+              bexportArchived,
+              bExportComments,
+              bExportChecklists,
+              bExportAttachments,
+              iExcelItemsAsRows,
+              bckHTMLCardInfo,
+              bchkHTMLInlineImages,
+              allColumns,
+              selectedColumns,
+              css,
+              filterMode,
+              bExportCustomFields,
+              templateURL,
+              chkANDORFilter,
+            );
+          } catch (error) {
+            console.error("Export failed:", error);
+            $.growl.error({
+              title: "Export Failed",
+              message: error.message || "An error occurred during export",
+              fixed: true,
+            });
+          }
         }, 500);
         modal.close();
-        });
+      },
+    );
 
-        modal.open();
+    modal.open();
 
-        function initializeModal() {
+    function initializeModal() {
+      $('[data-toggle="tooltip"]').tooltip();
 
-        $('[data-toggle="tooltip"]').tooltip();
-        
-        // Initialize multiselect with error handling
-        try {
-            if ($.fn.multiselect) {
-                $('#selectedColumns').multiselect({
-                    includeSelectAllOption: true,
-                    onSelectAll: function() {
-                        localStorage.TrelloExportSelectedColumns = '';
-                    }
-                });
+      // Initialize multiselect with error handling
+      try {
+        if ($.fn.multiselect) {
+          $("#selectedColumns").multiselect({
+            includeSelectAllOption: true,
+            onSelectAll: function () {
+              localStorage.TrelloExportSelectedColumns = "";
+            },
+          });
 
-                $('button.multiselect.dropdown-toggle.btn.btn-default').click(function() {
-                    $('.multiselect-container.dropdown-menu').toggle();
-                });
-            } else {
-                console.error('[TrelloExport] Bootstrap multiselect not loaded');
-                // Fallback: use native multi-select
-                $('#selectedColumns').attr('multiple', 'multiple').attr('size', 8);
-            }
-        } catch (error) {
-            console.error('[TrelloExport] Error initializing multiselect:', error);
-            // Fallback: use native multi-select
-            $('#selectedColumns').attr('multiple', 'multiple').attr('size', 8);
+          $("button.multiselect.dropdown-toggle.btn.btn-default").click(
+            function () {
+              $(".multiselect-container.dropdown-menu").toggle();
+            },
+          );
+        } else {
+          console.error("[TrelloExport] Bootstrap multiselect not loaded");
+          // Fallback: use native multi-select
+          $("#selectedColumns").attr("multiple", "multiple").attr("size", 8);
+        }
+      } catch (error) {
+        console.error("[TrelloExport] Error initializing multiselect:", error);
+        // Fallback: use native multi-select
+        $("#selectedColumns").attr("multiple", "multiple").attr("size", 8);
+      }
+
+      $("#templateSetURL").on("change", function () {
+        var tplsetURL = $("#templateSetURL").val();
+
+        // console.log('LOADING tplsetURL ' + tplsetURL);
+        if (!tplsetURL) {
+          localStorage.TrelloExportTwigTemplatesURL = tplsetURL;
+          availableTwigTemplates = localTwigTemplates;
+          var availableTwigTemplatesOptions = [];
+          for (var t = 0; t < availableTwigTemplates.length; t++) {
+            availableTwigTemplatesOptions.push(
+              '<option value="' +
+                availableTwigTemplates[t].url +
+                '">' +
+                availableTwigTemplates[t].description +
+                "</option>",
+            );
+          }
+          $("#twigTemplate").empty().append(availableTwigTemplatesOptions);
+          $.growl({
+            title: "TrelloExport",
+            message: "Templates loaded successfully",
+            fixed: false,
+          });
+          return;
         }
 
-        $('#templateSetURL').on('change', function() {
-            var tplsetURL = $('#templateSetURL').val();
+        loadTemplateSetFromURL(tplsetURL).then(
+          function (tplset) {
+            var jtplset = JSON.parse(tplset);
 
-            // console.log('LOADING tplsetURL ' + tplsetURL);
-            if (!tplsetURL) {
-                localStorage.TrelloExportTwigTemplatesURL = tplsetURL;
-                availableTwigTemplates = localTwigTemplates;
-                var availableTwigTemplatesOptions = [];
-                for (var t = 0; t < availableTwigTemplates.length; t++) {
-                    availableTwigTemplatesOptions.push('<option value="' + availableTwigTemplates[t].url + '">' + availableTwigTemplates[t].description + '</option>');
-                }
-                $('#twigTemplate').empty().append(availableTwigTemplatesOptions);
-                $.growl({
-                    title: "TrelloExport",
-                    message: "Templates loaded successfully",
-                    fixed: false
-                });
-                return;
+            if (!jtplset.templates) {
+              console.error("UNABLE TO LOAD TEMPLATE SET");
+              console.log("tplset: " + tplset);
+              $.growl.error({
+                title: "TrelloExport",
+                message: "Unable to load template set from URL " + tplsetURL,
+                fixed: true,
+              });
+              return;
+            }
+            // console.log('tplset loaded: ' + tplset);
+            localStorage.TrelloExportTwigTemplatesURL = tplsetURL;
+            availableTwigTemplates = jtplset.templates;
+
+            var availableTwigTemplatesOptions = [];
+            for (var t = 0; t < availableTwigTemplates.length; t++) {
+              availableTwigTemplatesOptions.push(
+                '<option value="' +
+                  availableTwigTemplates[t].url +
+                  '">' +
+                  availableTwigTemplates[t].description +
+                  "</option>",
+              );
             }
 
-            loadTemplateSetFromURL(tplsetURL).then(function(tplset) {
-                var jtplset = JSON.parse(tplset);
-
-                if (!jtplset.templates) {
-                    console.error('UNABLE TO LOAD TEMPLATE SET');
-                    console.log('tplset: ' + tplset);
-                    $.growl.error({
-                        title: "TrelloExport",
-                        message: "Unable to load template set from URL " + tplsetURL,
-                        fixed: true
-                    });
-                    return;
-                }
-                // console.log('tplset loaded: ' + tplset);
-                localStorage.TrelloExportTwigTemplatesURL = tplsetURL;
-                availableTwigTemplates = jtplset.templates;
-
-                var availableTwigTemplatesOptions = [];
-                for (var t = 0; t < availableTwigTemplates.length; t++) {
-                    availableTwigTemplatesOptions.push('<option value="' + availableTwigTemplates[t].url + '">' + availableTwigTemplates[t].description + '</option>');
-                }
-
-                $('#twigTemplate').empty().append(availableTwigTemplatesOptions);
-                // console.log('options updated w ' + JSON.stringify(availableTwigTemplatesOptions));
-                $.growl({
-                    title: "TrelloExport",
-                    message: "Templates loaded successfully",
-                    fixed: false
-                });
-
-            }, function(err) {
-                console.error('ERROR: ' + err);
-                    $.growl.error({
-                    title: "TrelloExport",
-                    message: "Unable to load template set from URL " + tplsetURL,
-                    fixed: true
-                });
+            $("#twigTemplate").empty().append(availableTwigTemplatesOptions);
+            // console.log('options updated w ' + JSON.stringify(availableTwigTemplatesOptions));
+            $.growl({
+              title: "TrelloExport",
+              message: "Templates loaded successfully",
+              fixed: false,
             });
-        });
-
-        $('#exporttype').on('change', async function() {
-            $('#advancedOptions').remove();
-            var sexporttype = $('#exporttype').val();
-            localStorage.TrelloExportType = sexporttype;
-            var sSelect;
-            resetOptions();
-
-            switch (sexporttype) {
-                case 'list':
-                    // get a list of all lists in board and let user choose which to export
-                    sSelect = await getalllistsinboard();
-                    $('#optionslist').append('<tr><td>Select one or more Lists</td><td><select multiple id="choosenlist">' + sSelect + '</select></td></tr>');
-                    break;
-                case 'board':
-                    // $('#optionslist').append('<tr><td>Filter lists by name:</td><td><input type="text" size="4" name="filterListsNames" class="filterListsNames" value="" placeholder="Set string or leave empty"></td></tr>');
-                    break;
-                case 'boards':
-                    // get a list of all boards
-                    // $('#customfields').attr('checked', false); // custom fields not yet available for multiple boards
-                    // $('#customfields').attr('disabled', true);
-                    sSelect = await getallboards();
-                    if (sSelect && sSelect.length > 0) {
-                    $('#optionslist').append('<tr><td>Select one or more Boards</td><td><select multiple id="choosenboards">' + sSelect + '</select></td></tr>');
-                } else {
-                    $('#optionslist').append('<tr><td colspan="2"><span style="color: #d9534f;">No boards found. Please check your Trello permissions.</span></td></tr>');
-                }
-                    // $('#optionslist').append('<tr><td>Filter lists by name:</td><td><input type="text" size="4" name="filterListsNames" class="filterListsNames" value="" placeholder="Set string or leave empty"></td></tr>');
-                    break;
-                case 'cards':
-                    // get a list of all lists in board and let user choose which to export
-                    sSelect = await getalllistsinboard();
-                    $('#optionslist').append('<tr><td>Select one List</td><td><select id="choosenSinglelist"><option value="">Select a list</option>' + sSelect + '</select></td></tr>');
-
-                    $('#choosenSinglelist').on('change', async function() {
-                        $('#choosenCards').parent().parent().remove();
-                        var selectedList = $('#choosenSinglelist').val();
-                        exportlists = [];
-                        exportlists.push(selectedList);
-                        // get cards in list
-                        sSelect = await getallcardsinlist(selectedList);
-                        $('#optionslist').append('<tr><td>Select one or more cards</td><td><select multiple id="choosenCards">' + sSelect + '</select></td></tr>');
-                    });
-                    break;
-                default:
-                    break;
-            }
-
-            $('#optionslist').append('<tr id="advancedOptions"><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Advanced functions">Advanced:</span></td><td><button id="btnCleanLocalStorage">Clean LocalStorage</button></td></tr>');
-
-            $('#btnCleanLocalStorage').on('click', function() {
-                CleanLocalStorage();
+          },
+          function (err) {
+            console.error("ERROR: " + err);
+            $.growl.error({
+              title: "TrelloExport",
+              message: "Unable to load template set from URL " + tplsetURL,
+              fixed: true,
             });
+          },
+        );
+      });
 
-            $('#cklAsRowsRow').hide();
-            $('#ckHTMLCardInfoRow').hide();
-            $('#xlsColumns').hide();
-            $('#renderingOptions').hide();
+      $("#exporttype").on("change", async function () {
+        $("#advancedOptions").remove();
+        var sexporttype = $("#exporttype").val();
+        localStorage.TrelloExportType = sexporttype;
+        var sSelect;
+        resetOptions();
 
-            if (selectedMode)
-                $('#exportmode').val(selectedMode);
-
-            // var mode = $('#exportmode').val();
-            switch (selectedMode) {
-                case 'XLSX':
-                    $('#cklAsRowsRow').show();
-                    $('#xlsColumns').show();
-                    break;
-                case 'HTML':
-                    $('#renderingOptions').show();
-                    $('#xlsColumns').show();
-                    break;
-                case 'MD':
-                    $('#ckHTMLCardInfoRow').show();
-                    // $('#renderingOptions').show();
-                    break;
-                case 'CSV':
-                    $('#cklAsRowsRow').show();
-                    $('#xlsColumns').show();
-                    break;
-                default:
-                    break;
-            }
-
-        });
-
-        $('#exportmode').on('change', function() {
-            var mode = $('#exportmode').val();
-            selectedMode = mode;
-            localStorage.TrelloExportMode = mode;
-            $('#cklAsRowsRow').hide();
-            $('#ckHTMLCardInfoRow').hide();
-            $('#xlsColumns').hide();
-            $('#renderingOptions').hide();
-
-            switch (mode) {
-                case 'XLSX':
-                    $('#cklAsRowsRow').show();
-                    $('#xlsColumns').show();
-                    break;
-                case 'HTML':
-                    $('#renderingOptions').show();
-                    $('#xlsColumns').show();
-                    break;
-                case 'MD':
-                    $('#ckHTMLCardInfoRow').show();
-                    // $('#renderingOptions').show();
-                    break;
-                case 'CSV':
-                    $('#cklAsRowsRow').show();
-                    $('#xlsColumns').show();
-                    break;
-                default:
-                    break;
-            }
-        });
-
-        $('#cklAsRows').attr('disabled', true); //  default
-        $('#checklists').on('change', function() {
-            var ecl = $('#checklists').is(':checked');
-            if (!ecl) {
-                $('#cklAsRows').attr('disabled', true);
-
+        switch (sexporttype) {
+          case "list":
+            // get a list of all lists in board and let user choose which to export
+            sSelect = await getalllistsinboard();
+            $("#optionslist").append(
+              '<tr><td>Select one or more Lists</td><td><select multiple id="choosenlist">' +
+                sSelect +
+                "</select></td></tr>",
+            );
+            break;
+          case "board":
+            // $('#optionslist').append('<tr><td>Filter lists by name:</td><td><input type="text" size="4" name="filterListsNames" class="filterListsNames" value="" placeholder="Set string or leave empty"></td></tr>');
+            break;
+          case "boards":
+            // get a list of all boards
+            // $('#customfields').attr('checked', false); // custom fields not yet available for multiple boards
+            // $('#customfields').attr('disabled', true);
+            sSelect = await getallboards();
+            if (sSelect && sSelect.length > 0) {
+              $("#optionslist").append(
+                '<tr><td>Select one or more Boards</td><td><select multiple id="choosenboards">' +
+                  sSelect +
+                  "</select></td></tr>",
+              );
             } else {
-                $('#cklAsRows').attr('disabled', false);
+              $("#optionslist").append(
+                '<tr><td colspan="2"><span style="color: #d9534f;">No boards found. Please check your Trello permissions.</span></td></tr>',
+              );
             }
-        });
+            // $('#optionslist').append('<tr><td>Filter lists by name:</td><td><input type="text" size="4" name="filterListsNames" class="filterListsNames" value="" placeholder="Set string or leave empty"></td></tr>');
+            break;
+          case "cards":
+            // get a list of all lists in board and let user choose which to export
+            sSelect = await getalllistsinboard();
+            $("#optionslist").append(
+              '<tr><td>Select one List</td><td><select id="choosenSinglelist"><option value="">Select a list</option>' +
+                sSelect +
+                "</select></td></tr>",
+            );
 
-        $('input[name=asrows]').change(async function() {
-            await setColumnHeadings(this.value);
-        });
-
-        if (localStorage.TrelloExportCustomFields) {
-            $('#customfields').attr('checked', true);
-            // Use setTimeout to defer the await call
-            setTimeout(async () => {
-                await setColumnHeadings($('input[name=asrows]:checked').val());
-            }, 0);
+            $("#choosenSinglelist").on("change", async function () {
+              $("#choosenCards").parent().parent().remove();
+              var selectedList = $("#choosenSinglelist").val();
+              exportlists = [];
+              exportlists.push(selectedList);
+              // get cards in list
+              sSelect = await getallcardsinlist(selectedList);
+              $("#optionslist").append(
+                '<tr><td>Select one or more cards</td><td><select multiple id="choosenCards">' +
+                  sSelect +
+                  "</select></td></tr>",
+              );
+            });
+            break;
+          default:
+            break;
         }
 
-        $('#customfields').click(async function() {
-            var isON = $('#customfields').is(':checked');
-            if (isON)
-                localStorage.TrelloExportCustomFields = 'on';
-            else
-                localStorage.TrelloExportCustomFields = '';
-            await setColumnHeadings($('input[name=asrows]:checked').val());
+        $("#optionslist").append(
+          '<tr id="advancedOptions"><td><span data-toggle="tooltip" data-placement="right" data-container="body" title="Advanced functions">Advanced:</span></td><td><button id="btnCleanLocalStorage">Clean LocalStorage</button></td></tr>',
+        );
+
+        $("#btnCleanLocalStorage").on("click", function () {
+          CleanLocalStorage();
         });
 
-        if (selectedType) {
-            $('#exporttype').val(selectedType);
-            $('#exporttype').trigger('change');
-        }
+        $("#cklAsRowsRow").hide();
+        $("#ckHTMLCardInfoRow").hide();
+        $("#xlsColumns").hide();
+        $("#renderingOptions").hide();
 
-        if (twigTemplate) {
-            $('#twigTemplate').val(twigTemplate);
-            $('#twigTemplate').trigger('change');
+        if (selectedMode) $("#exportmode").val(selectedMode);
+
+        // var mode = $('#exportmode').val();
+        switch (selectedMode) {
+          case "XLSX":
+            $("#cklAsRowsRow").show();
+            $("#xlsColumns").show();
+            break;
+          case "HTML":
+            $("#renderingOptions").show();
+            $("#xlsColumns").show();
+            break;
+          case "MD":
+            $("#ckHTMLCardInfoRow").show();
+            // $('#renderingOptions').show();
+            break;
+          case "CSV":
+            $("#cklAsRowsRow").show();
+            $("#xlsColumns").show();
+            break;
+          default:
+            break;
         }
+      });
+
+      $("#exportmode").on("change", function () {
+        var mode = $("#exportmode").val();
+        selectedMode = mode;
+        localStorage.TrelloExportMode = mode;
+        $("#cklAsRowsRow").hide();
+        $("#ckHTMLCardInfoRow").hide();
+        $("#xlsColumns").hide();
+        $("#renderingOptions").hide();
+
+        switch (mode) {
+          case "XLSX":
+            $("#cklAsRowsRow").show();
+            $("#xlsColumns").show();
+            break;
+          case "HTML":
+            $("#renderingOptions").show();
+            $("#xlsColumns").show();
+            break;
+          case "MD":
+            $("#ckHTMLCardInfoRow").show();
+            // $('#renderingOptions').show();
+            break;
+          case "CSV":
+            $("#cklAsRowsRow").show();
+            $("#xlsColumns").show();
+            break;
+          default:
+            break;
+        }
+      });
+
+      $("#cklAsRows").attr("disabled", true); //  default
+      $("#checklists").on("change", function () {
+        var ecl = $("#checklists").is(":checked");
+        if (!ecl) {
+          $("#cklAsRows").attr("disabled", true);
+        } else {
+          $("#cklAsRows").attr("disabled", false);
+        }
+      });
+
+      $("input[name=asrows]").change(async function () {
+        await setColumnHeadings(this.value);
+      });
+
+      if (localStorage.TrelloExportCustomFields) {
+        $("#customfields").attr("checked", true);
+        // Use setTimeout to defer the await call
+        setTimeout(async () => {
+          await setColumnHeadings($("input[name=asrows]:checked").val());
+        }, 0);
+      }
+
+      $("#customfields").click(async function () {
+        var isON = $("#customfields").is(":checked");
+        if (isON) localStorage.TrelloExportCustomFields = "on";
+        else localStorage.TrelloExportCustomFields = "";
+        await setColumnHeadings($("input[name=asrows]:checked").val());
+      });
+
+      if (selectedType) {
+        $("#exporttype").val(selectedType);
+        $("#exporttype").trigger("change");
+      }
+
+      if (twigTemplate) {
+        $("#twigTemplate").val(twigTemplate);
+        $("#twigTemplate").trigger("change");
+      }
     } // end initializeModal
-
-    } catch (error) {
-        console.error('[TrelloExport] Error in TrelloExportOptions:', error);
-        $.growl.error({
-            title: "TrelloExport Error",
-            message: "An error occurred: " + error.message,
-            fixed: true
-        });
-    }
-    return false; // close dialog
+  } catch (error) {
+    console.error("[TrelloExport] Error in TrelloExportOptions:", error);
+    $.growl.error({
+      title: "TrelloExport Error",
+      message: "An error occurred: " + error.message,
+      fixed: true,
+    });
+  }
+  return false; // close dialog
 }
 
 async function setColumnHeadings(asrowsMode) {
-    var columnHeadings = [];
-    
-    switch (Number(asrowsMode)) {
-        case 1: // checklist item
-            columnHeadings = [
-                'Organization', 'Board', 'List', 'Card #', 'Title', 'Link', 'Description',
-                'Total Checklist items', 'Completed Checklist items', 'Checklist',
-                'Checklist item', 'Completed', 'DateCompleted', 'CompletedBy',
-                'NumberOfComments', 'Comments', 'Attachments', 'Votes', 'Spent', 'Estimate',
-                'Points Estimate', 'Points Consumed', 'Created', 'CreatedBy', 'LastActivity', 'Due', 
-                'Done', 'DoneBy', 'DoneTime', 'Members', 'Labels', 'Due Complete', 'Start', 'Checklist item Due', 'Checklist item idMember', 'Checklist item Member', 'Checklist item State'
-            ];
-            break;
-        case 2: // label
-            columnHeadings = [
-                'Organization', 'Board', 'List', 'Card #', 'Title', 'Link', 'Description',
-                'Total Checklist items', 'Completed Checklist items', 'Checklists',
-                'NumberOfComments', 'Comments', 'Attachments', 'Votes', 'Spent', 'Estimate',
-                'Points Estimate', 'Points Consumed', 'Created', 'CreatedBy', 'LastActivity', 'Due',
-                'Done', 'DoneBy', 'DoneTime', 'Members', 'Label', 'Due Complete', 'Start'
-            ];
-            break;
-        case 3: // member
-            columnHeadings = [
-                'Organization', 'Board', 'List', 'Card #', 'Title', 'Link', 'Description',
-                'Total Checklist items', 'Completed Checklist items', 'Checklists',
-                'NumberOfComments', 'Comments', 'Attachments', 'Votes', 'Spent', 'Estimate',
-                'Points Estimate', 'Points Consumed', 'Created', 'CreatedBy', 'LastActivity', 'Due',
-                'Done', 'DoneBy', 'DoneTime', 'Member', 'Labels', 'Due Complete', 'Start'
-            ];
-            break;
-        default:
-            // card
-            columnHeadings = [
-                'Organization', 'Board', 'List', 'Card #', 'Title', 'Link', 'Description',
-                'Total Checklist items', 'Completed Checklist items', 'Checklists',
-                'NumberOfComments', 'Comments', 'Attachments', 'Votes', 'Spent', 'Estimate',
-                'Points Estimate', 'Points Consumed', 'Created', 'CreatedBy', 'LastActivity', 'Due',
-                'Done', 'DoneBy', 'DoneTime', 'Members', 'Labels', 'Due Complete', 'Start'
-            ];
-            break;
+  var columnHeadings = [];
+
+  switch (Number(asrowsMode)) {
+    case 1: // checklist item
+      columnHeadings = [
+        "Organization",
+        "Board",
+        "List",
+        "Card #",
+        "Title",
+        "Link",
+        "Description",
+        "Total Checklist items",
+        "Completed Checklist items",
+        "Checklist",
+        "Checklist item",
+        "Completed",
+        "DateCompleted",
+        "CompletedBy",
+        "NumberOfComments",
+        "Comments",
+        "Attachments",
+        "Votes",
+        "Spent",
+        "Estimate",
+        "Points Estimate",
+        "Points Consumed",
+        "Created",
+        "CreatedBy",
+        "LastActivity",
+        "Due",
+        "Done",
+        "DoneBy",
+        "DoneTime",
+        "Members",
+        "Labels",
+        "Due Complete",
+        "Start",
+        "Checklist item Due",
+        "Checklist item idMember",
+        "Checklist item Member",
+        "Checklist item State",
+      ];
+      break;
+    case 2: // label
+      columnHeadings = [
+        "Organization",
+        "Board",
+        "List",
+        "Card #",
+        "Title",
+        "Link",
+        "Description",
+        "Total Checklist items",
+        "Completed Checklist items",
+        "Checklists",
+        "NumberOfComments",
+        "Comments",
+        "Attachments",
+        "Votes",
+        "Spent",
+        "Estimate",
+        "Points Estimate",
+        "Points Consumed",
+        "Created",
+        "CreatedBy",
+        "LastActivity",
+        "Due",
+        "Done",
+        "DoneBy",
+        "DoneTime",
+        "Members",
+        "Label",
+        "Due Complete",
+        "Start",
+      ];
+      break;
+    case 3: // member
+      columnHeadings = [
+        "Organization",
+        "Board",
+        "List",
+        "Card #",
+        "Title",
+        "Link",
+        "Description",
+        "Total Checklist items",
+        "Completed Checklist items",
+        "Checklists",
+        "NumberOfComments",
+        "Comments",
+        "Attachments",
+        "Votes",
+        "Spent",
+        "Estimate",
+        "Points Estimate",
+        "Points Consumed",
+        "Created",
+        "CreatedBy",
+        "LastActivity",
+        "Due",
+        "Done",
+        "DoneBy",
+        "DoneTime",
+        "Member",
+        "Labels",
+        "Due Complete",
+        "Start",
+      ];
+      break;
+    default:
+      // card
+      columnHeadings = [
+        "Organization",
+        "Board",
+        "List",
+        "Card #",
+        "Title",
+        "Link",
+        "Description",
+        "Total Checklist items",
+        "Completed Checklist items",
+        "Checklists",
+        "NumberOfComments",
+        "Comments",
+        "Attachments",
+        "Votes",
+        "Spent",
+        "Estimate",
+        "Points Estimate",
+        "Points Consumed",
+        "Created",
+        "CreatedBy",
+        "LastActivity",
+        "Due",
+        "Done",
+        "DoneBy",
+        "DoneTime",
+        "Members",
+        "Labels",
+        "Due Complete",
+        "Start",
+      ];
+      break;
+  }
+
+  var bExportCustomFields = $("#customfields").is(":checked");
+
+  if (bExportCustomFields) {
+    customFields = [];
+    await loadCustomFields(columnHeadings);
+  }
+  var ColumnOptions = [];
+
+  isSelected = "selected";
+  for (var x = 0; x < columnHeadings.length; x++) {
+    if (localStorage.TrelloExportSelectedColumns) {
+      isSelected = "";
+      var savedOptions = localStorage.TrelloExportSelectedColumns.split(",");
+      if ($.inArray(columnHeadings[x], savedOptions) > -1) {
+        isSelected = "selected";
+        // console.log('2ADD COLUMN ' + columnHeadings[x]);
+        // options.push(columnHeadings[x]);
+      }
     }
+    var o =
+      '<option value="' +
+      columnHeadings[x] +
+      '" ' +
+      (isSelected === "selected" ? 'selected="selected"' : "") +
+      ">" +
+      columnHeadings[x] +
+      "</option>";
+    ColumnOptions.push(o);
+  }
+  try {
+    if ($.fn.multiselect) {
+      $("#selectedColumns")
+        .multiselect("destroy")
+        .find("option")
+        .remove()
+        .end()
+        .append(ColumnOptions.join(""))
+        .multiselect({
+          includeSelectAllOption: true,
+          onSelectAll: function () {
+            localStorage.TrelloExportSelectedColumns = "";
+          },
+        });
 
-    var bExportCustomFields = $('#customfields').is(':checked');
-
-    if (bExportCustomFields) {
-        customFields = [];
-        await loadCustomFields(columnHeadings);
+      $("button.multiselect.dropdown-toggle.btn.btn-default").click(
+        function () {
+          $(".multiselect-container.dropdown-menu").toggle();
+        },
+      );
+    } else {
+      // Fallback: just update the select without multiselect
+      $("#selectedColumns")
+        .find("option")
+        .remove()
+        .end()
+        .append(ColumnOptions.join(""));
     }
-    var ColumnOptions = [];
+  } catch (error) {
+    console.error("[TrelloExport] Error rebuilding multiselect:", error);
+    // Fallback: just update the select
+    $("#selectedColumns")
+      .find("option")
+      .remove()
+      .end()
+      .append(ColumnOptions.join(""));
+  }
 
-    isSelected = 'selected';
-    for (var x = 0; x < columnHeadings.length; x++) {
-        if (localStorage.TrelloExportSelectedColumns) {
-            isSelected = '';
-            var savedOptions = localStorage.TrelloExportSelectedColumns.split(',');
-            if ($.inArray(columnHeadings[x], savedOptions) > -1) {
-                isSelected = 'selected';
-                // console.log('2ADD COLUMN ' + columnHeadings[x]);
-                // options.push(columnHeadings[x]);
-            }
-        }
-        var o = '<option value="' + columnHeadings[x] + '" ' + (isSelected === 'selected' ? 'selected="selected"' : '') + '>' + columnHeadings[x] + '</option>';
-        ColumnOptions.push(o);
-    }
-    try {
-        if ($.fn.multiselect) {
-            $('#selectedColumns').multiselect('destroy')
-                .find('option')
-                .remove()
-                .end()
-                .append(ColumnOptions.join(''))
-                .multiselect({
-                    includeSelectAllOption: true,
-                    onSelectAll: function() {
-                        localStorage.TrelloExportSelectedColumns = '';
-                    }
-                });
-
-            $('button.multiselect.dropdown-toggle.btn.btn-default').click(function() {
-                $('.multiselect-container.dropdown-menu').toggle();
-            });
-        } else {
-            // Fallback: just update the select without multiselect
-            $('#selectedColumns')
-                .find('option')
-                .remove()
-                .end()
-                .append(ColumnOptions.join(''));
-        }
-    } catch (error) {
-        console.error('[TrelloExport] Error rebuilding multiselect:', error);
-        // Fallback: just update the select
-        $('#selectedColumns')
-            .find('option')
-            .remove()
-            .end()
-            .append(ColumnOptions.join(''));
-    }
-
-    return columnHeadings;
+  return columnHeadings;
 }
 
 // append custom fields to column headings
 async function loadCustomFields(columnHeadings) {
-    try {
-        const pdata = await $.ajax({
-            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: 'https://trello.com/1/boards/' + idBoard + '/customfields',
-            dataType: 'json'
-        });
-        
-        if (pdata !== undefined) {
-            for (var f = 0; f < pdata.length; f++) {
-                // console.log(JSON.stringify(pdata[f]));
-                customFields.push(pdata[f]);
-                columnHeadings.push(pdata[f].name);
-            }
-        }
-    } catch (error) {
-        console.error('Error loading custom fields:', error);
+  try {
+    const pdata = await $.ajax({
+      headers: { "x-trello-user-agent-extension": "TrelloExport" },
+      url: "https://trello.com/1/boards/" + idBoard + "/customfields",
+      dataType: "json",
+    });
+
+    if (pdata !== undefined) {
+      for (var f = 0; f < pdata.length; f++) {
+        // console.log(JSON.stringify(pdata[f]));
+        customFields.push(pdata[f]);
+        columnHeadings.push(pdata[f].name);
+      }
     }
+  } catch (error) {
+    console.error("Error loading custom fields:", error);
+  }
 }
 
 async function loadCardCustomFields(cardID) {
-    var rc = [];
+  var rc = [];
 
-    try {
-        const pdata = await $.ajax({
-            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: 'https://trello.com/1/cards/' + cardID + '/customFieldItems',
-            dataType: 'json'
-        });
-        
-        pdata.forEach(function(dv) {
-            var theValue = dv.value;
-            if (!theValue)
-                theValue = dv.idValue;
+  try {
+    const pdata = await $.ajax({
+      headers: { "x-trello-user-agent-extension": "TrelloExport" },
+      url: "https://trello.com/1/cards/" + cardID + "/customFieldItems",
+      dataType: "json",
+    });
 
-            var oVal = lookupCustomDataValue(dv.idCustomField, theValue);
-            rc.push({ colName: oVal.name, value: oVal.value });
-        });
-    } catch (error) {
-        console.error('Error loading card custom fields:', error);
-    }
+    pdata.forEach(function (dv) {
+      var theValue = dv.value;
+      if (!theValue) theValue = dv.idValue;
 
-    return rc;
+      var oVal = lookupCustomDataValue(dv.idCustomField, theValue);
+      rc.push({ colName: oVal.name, value: oVal.value });
+    });
+  } catch (error) {
+    console.error("Error loading card custom fields:", error);
+  }
+
+  return rc;
 }
 
 function lookupCustomDataValue(key, cardCFValue) {
-    if (!cardCFValue) {
-        console.error('lookupCustomDataValue: card CF value for card ' + key + ' NOT AVAILABLE: ' + cardCFValue);
-        return null;
-    }
-    var v = null;
-    customFields.some(function(cf) {
-        if (cf.id.toString().trim() === key.toString().trim()) {
-            switch (cf.type) {
-                case 'checkbox':
-                    v = { name: cf.name, value: cardCFValue.checked };
-                    break;
+  if (!cardCFValue) {
+    console.error(
+      "lookupCustomDataValue: card CF value for card " +
+        key +
+        " NOT AVAILABLE: " +
+        cardCFValue,
+    );
+    return null;
+  }
+  var v = null;
+  customFields.some(function (cf) {
+    if (cf.id.toString().trim() === key.toString().trim()) {
+      switch (cf.type) {
+        case "checkbox":
+          v = { name: cf.name, value: cardCFValue.checked };
+          break;
 
-                case 'date':
-                    v = { name: cf.name, value: (cardCFValue[cf.type] ? new Date(cardCFValue[cf.type]).toLocaleString() : null) };
-                    break;
+        case "date":
+          v = {
+            name: cf.name,
+            value: cardCFValue[cf.type]
+              ? new Date(cardCFValue[cf.type]).toLocaleString()
+              : null,
+          };
+          break;
 
-                case 'list':
-                    v = { name: cf.name, value: cardCFValue };
-                    $.each(cf.options, function(k, opt) {
-                        if (cf.id === opt.idCustomField && opt.id === cardCFValue) {
-                            v = { name: cf.name, value: opt.value.text };
-                            return;
-                        }
-                    });
-                    break;
-
-                default:
-                    v = { name: cf.name, value: cardCFValue[cf.type] };
-                    break;
+        case "list":
+          v = { name: cf.name, value: cardCFValue };
+          $.each(cf.options, function (k, opt) {
+            if (cf.id === opt.idCustomField && opt.id === cardCFValue) {
+              v = { name: cf.name, value: opt.value.text };
+              return;
             }
-            return v;
-        }
-    });
-    return v;
+          });
+          break;
+
+        default:
+          v = { name: cf.name, value: cardCFValue[cf.type] };
+          break;
+      }
+      return v;
+    }
+  });
+  return v;
 }
 
 function resetOptions() {
-    $('#choosenlist').parent().parent().remove();
-    $('#choosenboards').parent().parent().remove();
-    $('#choosenCards').parent().parent().remove();
-    $('#choosenSinglelist').parent().parent().remove();
-    $('#filterListsNames').parent().parent().remove();
-    // $('#customfields').attr('checked', false);
-    $('#customfields').attr('disabled', false);
+  $("#choosenlist").parent().parent().remove();
+  $("#choosenboards").parent().parent().remove();
+  $("#choosenCards").parent().parent().remove();
+  $("#choosenSinglelist").parent().parent().remove();
+  $("#filterListsNames").parent().parent().remove();
+  // $('#customfields').attr('checked', false);
+  $("#customfields").attr("disabled", false);
 }
 
 async function getalllistsinboard() {
-    var apiURL = "https://trello.com/1/boards/" + idBoard + "?lists=all&cards=none";
-    var sHtml = "";
-    var bexportArchived = $('#exportArchived').is(':checked');
+  var apiURL =
+    "https://trello.com/1/boards/" + idBoard + "?lists=all&cards=none";
+  var sHtml = "";
+  var bexportArchived = $("#exportArchived").is(":checked");
 
-    try {
-        const data = await $.ajax({
-            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: apiURL
-        });
-            // console.log('DATA:' + JSON.stringify(data));
-        // console.log('DATA:' + JSON.stringify(data));
-        $.each(data.lists, function(key, list) {
+  try {
+    const data = await $.ajax({
+      headers: { "x-trello-user-agent-extension": "TrelloExport" },
+      url: apiURL,
+    });
+    // console.log('DATA:' + JSON.stringify(data));
+    // console.log('DATA:' + JSON.stringify(data));
+    $.each(data.lists, function (key, list) {
+      if (!bexportArchived && list.closed) return;
 
-            if (!bexportArchived && list.closed)
-                return;
+      var list_id = list.id;
+      var listName = list.name;
+      if (!list.closed) {
+        sHtml += '<option value="' + list_id + '">' + listName + "</option>";
+      } else {
+        sHtml +=
+          '<option value="' +
+          list_id +
+          '">' +
+          listName +
+          " [Archived]</option>";
+      }
+    });
+  } catch (error) {
+    console.error("getalllistsinboard error: ", error);
+    $.growl.error({
+      title: "TrelloExport",
+      message:
+        error.statusText + " " + error.status + ": " + error.responseText,
+      fixed: true,
+    });
+  }
 
-            var list_id = list.id;
-            var listName = list.name;
-            if (!list.closed) {
-                sHtml += '<option value="' + list_id + '">' + listName + '</option>';
-            } else {
-                sHtml += '<option value="' + list_id + '">' + listName + ' [Archived]</option>';
-            }
-        });
-    } catch (error) {
-        console.error("getalllistsinboard error: ", error);
-        $.growl.error({
-            title: "TrelloExport",
-            message: error.statusText + ' ' + error.status + ': ' + error.responseText,
-            fixed: true
-        });
-    }
-
-    return sHtml;
+  return sHtml;
 }
 
-
 async function getorganizations() {
-    var apiURL = "https://trello.com/1/members/me/organizations";
-    var orgID = []; //[{ id: null, displayName: 'Private Boards' }];
+  var apiURL = "https://trello.com/1/members/me/organizations";
+  var orgID = []; //[{ id: null, displayName: 'Private Boards' }];
 
-    try {
-        const data = await $.ajax({
-            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: apiURL,
-            timeout: 10000 // 10 second timeout
-        });
-        $.each(data, function(key, org) {
-            orgID.push({ id: org.id, displayName: org.displayName });
-        });
-        orgID.push({ id: null, displayName: 'Personal Boards' });
-
-    } catch (error) {
-        console.error("getorganizations: ", error);
-        // Don't show error for 401/403 - user might not have access to organizations
-        if (error.status !== 401 && error.status !== 403) {
-            $.growl.warning({
-                title: "TrelloExport",
-                message: "Could not load organizations. Using Personal Boards only.",
-                duration: 5000
-            });
-        }
-        // Return Personal Boards as fallback
-        orgID = [{ id: null, displayName: 'Personal Boards' }];
+  try {
+    const data = await $.ajax({
+      headers: { "x-trello-user-agent-extension": "TrelloExport" },
+      url: apiURL,
+      timeout: 10000, // 10 second timeout
+    });
+    $.each(data, function (key, org) {
+      orgID.push({ id: org.id, displayName: org.displayName });
+    });
+    orgID.push({ id: null, displayName: "Personal Boards" });
+  } catch (error) {
+    console.error("getorganizations: ", error);
+    // Don't show error for 401/403 - user might not have access to organizations
+    if (error.status !== 401 && error.status !== 403) {
+      $.growl.warning({
+        title: "TrelloExport",
+        message: "Could not load organizations. Using Personal Boards only.",
+        duration: 5000,
+      });
     }
+    // Return Personal Boards as fallback
+    orgID = [{ id: null, displayName: "Personal Boards" }];
+  }
 
-    return orgID;
+  return orgID;
 }
 
 async function getorganizationid() {
-    var apiURL = "https://trello.com/1/boards/" + idBoard + '?lists=none';
-    var orgID = "";
+  var apiURL = "https://trello.com/1/boards/" + idBoard + "?lists=none";
+  var orgID = "";
 
-    try {
-        const data = await $.ajax({
-            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: apiURL
-        });
-        //console.log('DATA:' + JSON.stringify(data));
-        orgID = data.idOrganization;
-    } catch (error) {
-        console.error("getorganizationid: ", error);
-        $.growl.error({
-            title: "TrelloExport",
-            message: error.statusText + ' ' + error.status + ': ' + error.responseText,
-            fixed: true
-        });
-    }
+  try {
+    const data = await $.ajax({
+      headers: { "x-trello-user-agent-extension": "TrelloExport" },
+      url: apiURL,
+    });
+    //console.log('DATA:' + JSON.stringify(data));
+    orgID = data.idOrganization;
+  } catch (error) {
+    console.error("getorganizationid: ", error);
+    $.growl.error({
+      title: "TrelloExport",
+      message:
+        error.statusText + " " + error.status + ": " + error.responseText,
+      fixed: true,
+    });
+  }
 
-    return orgID;
+  return orgID;
 }
 
 async function getallboards() {
+  var allIDs = await getorganizations();
+  var sHtml = "";
+  var tmpIDs = [];
 
-    var allIDs = await getorganizations();
-    var sHtml = "";
-    var tmpIDs = [];
-    
-    // If no organizations found, still try to get boards
-    if (!allIDs || allIDs.length === 0) {
-        console.log('[TrelloExport] No organizations found, using Personal Boards only');
-        allIDs = [{ id: null, displayName: 'Personal Boards' }];
+  // If no organizations found, still try to get boards
+  if (!allIDs || allIDs.length === 0) {
+    console.log(
+      "[TrelloExport] No organizations found, using Personal Boards only",
+    );
+    allIDs = [{ id: null, displayName: "Personal Boards" }];
+  }
+
+  for (const oid of allIDs) {
+    // GET /1/organizations/[idOrg or name]/boards
+    var apiURL =
+      "https://trello.com/1/organizations/" +
+      oid.id +
+      "/boards?lists=none&fields=name,idOrganization,closed";
+
+    if (oid.id === null) {
+      // current board outside any organization, get all boards
+      apiURL =
+        "https://trello.com/1/members/me/boards?lists=none&fields=name,idOrganization,closed";
     }
 
-    for (const oid of allIDs) {
+    try {
+      const data = await $.ajax({
+        headers: { "x-trello-user-agent-extension": "TrelloExport" },
+        url: apiURL,
+        timeout: 10000, // 10 second timeout
+      });
 
-        // GET /1/organizations/[idOrg or name]/boards
-        var apiURL = "https://trello.com/1/organizations/" + oid.id + "/boards?lists=none&fields=name,idOrganization,closed";
+      var bexportArchived = $("#exportArchived").is(":checked");
+      for (var i = 0; i < data.length; i++) {
+        if (!bexportArchived && data[i].closed) continue;
 
-        if (oid.id === null) {
-            // current board outside any organization, get all boards
-            apiURL = "https://trello.com/1/members/me/boards?lists=none&fields=name,idOrganization,closed";
+        var board_id = data[i].id;
+        if ($.inArray(board_id, tmpIDs) > -1) continue;
+
+        tmpIDs.push(board_id);
+        var boardName = data[i].name;
+        if (!data[i].closed) {
+          sHtml +=
+            '<option value="' +
+            board_id +
+            '">[' +
+            oid.displayName +
+            "] " +
+            boardName +
+            "</option>";
+        } else {
+          sHtml +=
+            '<option value="' +
+            board_id +
+            '">[' +
+            oid.displayName +
+            "] " +
+            boardName +
+            " [Archived]</option>";
         }
-
-        try {
-            const data = await $.ajax({
-                headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-                url: apiURL,
-                timeout: 10000 // 10 second timeout
-            });
-
-            var bexportArchived = $('#exportArchived').is(':checked');
-            for (var i = 0; i < data.length; i++) {
-
-                if (!bexportArchived && data[i].closed)
-                    continue;
-
-                var board_id = data[i].id;
-                if ($.inArray(board_id, tmpIDs) > -1)
-                    continue;
-
-                tmpIDs.push(board_id);
-                var boardName = data[i].name;
-                if (!data[i].closed) {
-                    sHtml += '<option value="' + board_id + '">[' + oid.displayName + '] ' + boardName + '</option>';
-                } else {
-                    sHtml += '<option value="' + board_id + '">[' + oid.displayName + '] ' + boardName + ' [Archived]</option>';
-                }
-            }
-        } catch (error) {
-            console.log("getallboards error: ", error);
-            $.growl.error({
-                title: "TrelloExport",
-                message: error.statusText + ' ' + error.status + ': ' + error.responseText,
-                fixed: true
-            });
-        }
+      }
+    } catch (error) {
+      console.log("getallboards error: ", error);
+      $.growl.error({
+        title: "TrelloExport",
+        message:
+          error.statusText + " " + error.status + ": " + error.responseText,
+        fixed: true,
+      });
     }
+  }
 
-    // var orgID = getorganizationid();
+  // var orgID = getorganizationid();
 
-
-    return sHtml;
+  return sHtml;
 }
 
 async function getBoardData(id) {
+  var apiURL =
+    "https://trello.com/1/boards/" + id + "?fields=name,idOrganization";
+  var bData = "";
 
-    var apiURL = "https://trello.com/1/boards/" + id + "?fields=name,idOrganization";
-    var bData = "";
+  try {
+    const data = await $.ajax({
+      headers: { "x-trello-user-agent-extension": "TrelloExport" },
+      url: apiURL,
+    });
+    //console.log('DATA:' + JSON.stringify(data));
+    bData = data;
+  } catch (error) {
+    console.error("getBoardData error: ", error);
+    $.growl.error({
+      title: "TrelloExport",
+      message:
+        error.statusText + " " + error.status + ": " + error.responseText,
+      fixed: true,
+    });
+  }
 
-    try {
-        const data = await $.ajax({
-            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: apiURL
-        });
-        //console.log('DATA:' + JSON.stringify(data));
-        bData = data;
-    } catch (error) {
-        console.error("getBoardData error: ", error);
-        $.growl.error({
-            title: "TrelloExport",
-            message: error.statusText + ' ' + error.status + ': ' + error.responseText,
-            fixed: true
-        });
-    }
-
-    return bData;
+  return bData;
 }
 
 async function getallcardsinlist(listid) {
-    // GET /1/lists/[idList]/cards?fields=idShort
-    var apiURL = "https://trello.com/1/lists/" + listid + "/cards?fields=idShort,name,closed";
-    var sHtml = "";
+  // GET /1/lists/[idList]/cards?fields=idShort
+  var apiURL =
+    "https://trello.com/1/lists/" +
+    listid +
+    "/cards?fields=idShort,name,closed";
+  var sHtml = "";
 
-    try {
-        const data = await $.ajax({
-            headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-            url: apiURL
-        });
-        var bexportArchived = $('#exportArchived').is(':checked');
+  try {
+    const data = await $.ajax({
+      headers: { "x-trello-user-agent-extension": "TrelloExport" },
+      url: apiURL,
+    });
+    var bexportArchived = $("#exportArchived").is(":checked");
 
-        // console.log('Got cards: ' + JSON.stringify(data));
-        for (var i = 0; i < data.length; i++) {
+    // console.log('Got cards: ' + JSON.stringify(data));
+    for (var i = 0; i < data.length; i++) {
+      if (!bexportArchived && data[i].closed) continue;
 
-            if (!bexportArchived && data[i].closed)
-                continue;
-
-            var card_id = data[i].id;
-            var cardName = data[i].name;
-            if (!data[i].closed) {
-                sHtml += '<option value="' + card_id + '">' + cardName + '</option>';
-            } else {
-                sHtml += '<option value="' + card_id + '">' + cardName + ' [Archived]</option>';
-            }
-        }
-    } catch (error) {
-        console.error("getallcardsinlist error!!!");
-        $.growl.error({
-            title: "TrelloExport",
-            message: error.statusText + ' ' + error.status + ': ' + error.responseText,
-            fixed: true
-        });
+      var card_id = data[i].id;
+      var cardName = data[i].name;
+      if (!data[i].closed) {
+        sHtml += '<option value="' + card_id + '">' + cardName + "</option>";
+      } else {
+        sHtml +=
+          '<option value="' +
+          card_id +
+          '">' +
+          cardName +
+          " [Archived]</option>";
+      }
     }
+  } catch (error) {
+    console.error("getallcardsinlist error!!!");
+    $.growl.error({
+      title: "TrelloExport",
+      message:
+        error.statusText + " " + error.status + ": " + error.responseText,
+      fixed: true,
+    });
+  }
 
-    return sHtml;
+  return sHtml;
 }
 
 function extractFloat(str, regex, groupIndex) {
-    var value = '';
-    var match = str.match(regex);
-    if (match !== null) {
-        value = parseFloat(match[groupIndex]);
-        if (value === false) {
-            value = '';
-        }
+  var value = "";
+  var match = str.match(regex);
+  if (match !== null) {
+    value = parseFloat(match[groupIndex]);
+    if (value === false) {
+      value = "";
     }
-    return value;
+  }
+  return value;
 }
 
 async function getMember(id) {
-    var apiURL = "https://trello.com/1/members/" + id;
-    var bData = "";
+  var apiURL = "https://trello.com/1/members/" + id;
+  var bData = "";
 
-    try {
-        const data = await $.ajax({
-            headers: { 'x-trello-user-agent-extension': 'TrelloExport' },
-            url: apiURL
-        });
-        bData = data;
-        // console.log(JSON.stringify(data));
-    } catch (error) {
-        console.error("getMember error: ", error);
-        $.growl.error({
-            title: "TrelloExport",
-            message: error.statusText + ' ' + error.status + ': ' + error.responseText,
-            fixed: true
-        });
-    }
+  try {
+    const data = await $.ajax({
+      headers: { "x-trello-user-agent-extension": "TrelloExport" },
+      url: apiURL,
+    });
+    bData = data;
+    // console.log(JSON.stringify(data));
+  } catch (error) {
+    console.error("getMember error: ", error);
+    $.growl.error({
+      title: "TrelloExport",
+      message:
+        error.statusText + " " + error.status + ": " + error.responseText,
+      fixed: true,
+    });
+  }
 
-    return bData;
+  return bData;
 }
 
-async function loadData(exportFormat, bexportArchived, bExportComments, bExportChecklists, bExportAttachments, iExcelItemsAsRows, bckHTMLCardInfo, bchkHTMLInlineImages, allColumns, selectedColumns, css, filterMode, bExportCustomFields, templateURL, chkANDORFilter) {
-    console.log('TrelloExport loading data, export format: ' + exportFormat + '... selectedColumns ' + selectedColumns.length + ' allColumns ' + allColumns.length);
+async function loadData(
+  exportFormat,
+  bexportArchived,
+  bExportComments,
+  bExportChecklists,
+  bExportAttachments,
+  iExcelItemsAsRows,
+  bckHTMLCardInfo,
+  bchkHTMLInlineImages,
+  allColumns,
+  selectedColumns,
+  css,
+  filterMode,
+  bExportCustomFields,
+  templateURL,
+  chkANDORFilter,
+) {
+  console.log(
+    "TrelloExport loading data, export format: " +
+      exportFormat +
+      "... selectedColumns " +
+      selectedColumns.length +
+      " allColumns " +
+      allColumns.length,
+  );
 
-    // Build optimized API parameters based on selected columns to reduce payload and avoid 403 errors
-    var apiParams = buildOptimizedApiParams(selectedColumns, bExportChecklists, bExportComments, bExportAttachments);
+  // Build optimized API parameters based on selected columns to reduce payload and avoid 403 errors
+  var apiParams = buildOptimizedApiParams(
+    selectedColumns,
+    bExportChecklists,
+    bExportComments,
+    bExportAttachments,
+  );
 
-    var converter = new showdown.Converter();
-    
-    $.growl({
-        title: "TrelloExport",
-        message: "Loading data, please wait..."
-    });
+  // issue #83: enable GitHub-Flavored Markdown options so code blocks, tables, strikethrough,
+  // task lists and single line breaks render the way Trello itself displays card markdown.
+  var converter = new showdown.Converter({
+    tables: true,
+    strikethrough: true,
+    ghCodeBlocks: true,
+    tasklists: true,
+    simpleLineBreaks: true,
+  });
 
-    // Small delay to show the message
-    await new Promise(resolve => setTimeout(resolve, 100));
+  $.growl({
+    title: "TrelloExport",
+    message: "Loading data, please wait...",
+  });
 
+  // Small delay to show the message
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  try {
+    var oOrganizations = [];
     try {
+      oOrganizations = await getorganizations();
+      // console.log('oOrganizations = ' + JSON.stringify(oOrganizations));
+    } catch (error) {
+      console.error("[TrelloExport] Error loading organizations:", error);
+      oOrganizations = [{ id: null, displayName: "Personal Boards" }];
+    }
 
-        var oOrganizations = [];
-        try {
-            oOrganizations = await getorganizations();
-            // console.log('oOrganizations = ' + JSON.stringify(oOrganizations));
-        } catch (error) {
-            console.error('[TrelloExport] Error loading organizations:', error);
-            oOrganizations = [{ id: null, displayName: 'Personal Boards' }];
-        }
+    var jsonComputedCards = [];
 
-        var jsonComputedCards = [];
+    // RegEx to find the Trello Plus Spent and Estimate (spent/estimate) in card titles
+    //var SpentEstRegex = /(\(([0-9]+(\.[0-9]+)?)(\/?([0-9]+(\.[0-9]+)?))?\))/;
+    var SpentEstRegex = new RegExp(
+      "([0-9]*((\.[0-9]+))?)/([0-9]*(?:(\.[0-9]+))?)",
+    );
+    var PointsEstRegex = /(\(([0-9]+(\.[0-9]+)?)\))/;
+    var PointsConRegex = /(\[([0-9]+(\.[0-9]+)?)\])/;
 
-        // RegEx to find the Trello Plus Spent and Estimate (spent/estimate) in card titles
-        //var SpentEstRegex = /(\(([0-9]+(\.[0-9]+)?)(\/?([0-9]+(\.[0-9]+)?))?\))/;
-        var SpentEstRegex = new RegExp("([0-9]*((\.[0-9]+))?)/([0-9]*(?:(\.[0-9]+))?)");
-        var PointsEstRegex = /(\(([0-9]+(\.[0-9]+)?)\))/;
-        var PointsConRegex = /(\[([0-9]+(\.[0-9]+)?)\])/;
-
-        /*
+    /*
             get data via Trello API instead of Board's json
         */
 
-        if (exportboards.length === 0) {
-            // export just current board
-            exportboards.push(idBoard);
-        }
-
-        // loop boards
-        for (var iBoard = 0; iBoard < exportboards.length; iBoard++) {
-            console.log('Export board ' + exportboards[iBoard]);
-            idBoard = exportboards[iBoard];
-
-            var boardData = await getBoardData(idBoard);
-            var boardName = boardData.name;
-            var orgName = '';
-            if (oOrganizations) {
-                var oOData = oOrganizations.find(function(obj) { return obj.id === boardData.idOrganization; });
-                if (oOData)
-                    orgName = oOData.displayName;
-            } else {
-                orgName = 'Personal Boards';
-            }
-
-            var readCards = 0;
-
-            var apiURL = "https://trello.com/1/boards/" + idBoard + "/lists?fields=name,closed&filter=all"; //"?lists=all&cards=all&card_fields=all&card_checklists=all&members=all&member_fields=all&membersInvited=all&checklists=all&organization=true&organization_fields=all&fields=all&actions=commentCard%2CcopyCommentCard%2CupdateCheckItemStateOnCard&card_attachments=true";
-            
-            try {
-                const data = await $.ajax({
-                    headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-                    url: apiURL
-                });
-
-                console.log('DONE: got ' + data.length + ' lists');
-
-                // if (!bexportArchived) {
-                //     if (data.closed) {
-                //         console.log('Skip archived Board ' + data.id);
-                //         return true;
-                //     }
-                // }
-
-                for (const list of data) {
-
-                        var list_id = list.id;
-                        var listName = list.name;
-                        var shouldProcessList = true;
-
-                    if (!bexportArchived) {
-                        if (list.closed) {
-                            // console.log('skip archived list ' + listName);
-                            shouldProcessList = false;
-                        }
-                    }
-
-                    if (shouldProcessList && exportlists.length > 0) {
-                        if ($.inArray(list_id, exportlists) === -1) {
-                            console.log('skip list ' + listName);
-                            shouldProcessList = false;
-                        }
-                    }
-
-                    // 1.9.14: filter lists by name
-                    if (shouldProcessList) {
-                        var accept = true,
-                            nListAccepted = 0;
-                        if (filterListsNames.length > 0 && filterMode === 'List') {
-                            for (var y = 0; y < filterListsNames.length; y++) {
-                                if (!listName.toLowerCase().stringContains(filterListsNames[y].trim().toLowerCase())) {
-                                    accept = false;
-                                } else {
-                                    accept = true;
-                                    nListAccepted++;
-                                    // break;
-                                }
-                            }
-                        }
-                        if (chkANDORFilter && filterMode === 'List') {
-                            // AND filter: must match all filters
-                            if (nListAccepted < filterListsNames.length)
-                                accept = false;
-                            else
-                                accept = true;
-                        }
-                        if (!accept) {
-                            console.log('skipping not accepted list ' + listName);
-                            shouldProcessList = false;
-                        }
-                    }
-
-                    if (shouldProcessList) {
-                        console.log('processing list ' + listName);
-                        nProcessedLists++;
-
-                        // tag archived lists
-                        if (list.closed) {
-                            listName = '[archived] ' + listName;
-                        }
-
-                        var exportedCardsIDs = [];
-                        var processedCardIds = {}; // Track cards we've already seen
-                        
-                        // Only process cards if the list should be processed
-                        // Note: Pagination with 'before' doesn't work well for /lists/{id}/cards endpoint
-                        // We'll get all cards in one request instead
-                        readCards = 0;
-
-                        try {
-                            // Build API URL with optimized parameters based on selected columns
-                            var cardsApiUrl = 'https://trello.com/1/lists/' + list_id + '/cards?limit=1000&filter=all&fields=' + apiParams.fields + apiParams.params;
-
-                            const datacards = await $.ajax({
-                                headers: { 'x-trello-user-agent-extension': 'TrelloExport'},
-                                url: cardsApiUrl,
-                                timeout: 60000
-                            });
-
-                            readCards = datacards.length;
-                            console.log('evaluating ' + datacards.length + ' cards in list ' + listName);
-
-                            // Iterate through each card and transform data as needed
-                            for (let i = 0; i < datacards.length; i++) {
-                                const card = datacards[i];
-
-                                        // console.log('=-=-=-=-=-=-=-=>>>>> I = ' + i);
-
-                                // Skip if we've already processed this card
-                                if (processedCardIds[card.id]) {
-                                    console.log('Skipping already processed card ' + card.id);
-                                    continue;
-                                }
-                                processedCardIds[card.id] = true;
-
-                                if (card.idList == list_id) {
-
-                                    if (!bexportArchived) {
-                                        if (card.closed) {
-                                            console.log('Skip archived card ' + card.name);
-                                            continue;
-                                        }
-                                    }
-
-                                    //export selected cards only option
-                                    if (exportcards.length > 0) {
-                                        if ($.inArray(card.id, exportcards) === -1) {
-                                            console.log('skip card ' + card.id);
-                                            continue;
-                                        }
-                                    }
-
-                                            var accept = true,
-                                                nCardAccepted = 0;
-                                            if (filterListsNames.length > 0 && filterMode === 'Card') {
-                                                for (var y = 0; y < filterListsNames.length; y++) {
-                                                    if (!card.name.toLowerCase().stringContains(filterListsNames[y].trim().toLowerCase())) {
-                                                        accept = false;
-                                                    } else {
-                                                        accept = true;
-                                                        nCardAccepted++;
-                                                        // break;
-                                                    }
-                                                }
-                                            }
-                                            if (chkANDORFilter && filterMode === 'Card') {
-                                                // AND filter: must match all filters
-                                                if (nCardAccepted < filterListsNames.length)
-                                                    accept = false;
-                                                else
-                                                    accept = true;
-                                            }
-                                            if (!accept) {
-                                                console.log('skipping card ' + card.name);
-                                                return true;
-                                            }
-
-                                            exportedCardsIDs.push(card.id);
-                                            var title = card.name;
-
-                                            console.log(i + ') Card #' + card.idShort + ' ' + title + ' (' + card.id + ') - POS: ' + card.pos);
-                                            nProcessedCards++;
-
-                                            var spent = 0;
-                                            var estimate = 0;
-                                            var checkListsText = '',
-                                                commentsText = '',
-                                                attachmentsText = '',
-                                                memberCreator = '',
-                                                datetimeCreated = null,
-                                                memberDone = '',
-                                                datetimeDone = '',
-                                                jsonCheckLists = [],
-                                                jsonComments = [],
-                                                jsonAttachments = [];
-
-                                            // Trello Plus Spent/Estimate
-                                            if(title.match(SpentEstRegex)){
-                                                    var m = title.match(SpentEstRegex);
-                                                    var cspent = m[1];
-                                                    var cestimate = m[4];
-                                                //   console.log("SPENT: " + cspent + " EST: " + cestimate);
-                                                    spent += Number(cspent);
-                                                    estimate += Number(cestimate);
-                                                //   console.log("TOTAL SPENT: " + spent + " EST: " + estimate);
-                                            }
-                                            
-                                            // spent = extractFloat(title, SpentEstRegex, 2);
-                                            // if (typeof spent !== 'number' || isNaN(spent))
-                                            //     spent = 0;        
-
-                                            // estimate = extractFloat(title, SpentEstRegex, 3);
-                                            // if (typeof estimate !== 'number' || isNaN(estimate))
-                                            //     estimate = 0;
-
-                                            // Scrum for Trello Points Estimate/Consumed
-                                            points_estimate = extractFloat(title, PointsEstRegex, 2);
-                                            if (typeof points_estimate !== 'number' || isNaN(points_estimate))
-                                                points_estimate = 0;
-
-                                            points_consumed = extractFloat(title, PointsConRegex, 2);
-                                            if (typeof points_consumed !== 'number' || isNaN(points_consumed))
-                                                points_consumed = 0;
-
-                                            // Clean-up title
-                                            title = title.replace(SpentEstRegex, '');
-                                            title = title.replace(PointsEstRegex, '');
-                                            title = title.replace(PointsConRegex, '');
-                                            title = title.trim();
-
-                                            // tag archived cards
-                                            if (card.closed) {
-                                                title = '[archived] ' + title;
-                                            }
-                                            var due = card.due || null;
-
-                                            //Get all the Member IDs
-                                            // console.log('Members: ' + card.idMembers.length);
-                                            var memberIDs = card.idMembers;
-                                            var memberInitials = [];
-                                            $.each(memberIDs, function(i, memberID) {
-                                                $.each(card.members, function(key, member) {
-                                                    if (member.id == memberID) {
-                                                        if (member.fullName !== undefined) {
-                                                            memberInitials.push(member.fullName); // initials, username or fullName    
-                                                        } else {
-                                                            if (member.username !== undefined) {
-                                                                memberInitials.push(member.username);
-                                                            }
-                                                        }
-
-                                                    }
-                                                });
-                                            });
-
-                                            //Get all labels
-                                            var labels = [],
-                                                jsonLabels = [],
-                                                nAccepted = 0;
-                                            if (card.labels.length <= 0 && filterListsNames.length > 0 && filterMode === 'Label') {
-                                                // filtering by label name: skip cards without labels
-                                                accept = false;
-                                                return true;
-                                            }
-
-                                            if (filterListsNames.length > 0 && filterMode === 'Label')
-                                                accept = false;
-
-                                            $.each(card.labels, function(i, label) {
-                                                jsonLabels.push(label);
-                                                if (label.name) {
-                                                    labels.push(label.name);
-                                                } else {
-                                                    labels.push(label.color);
-                                                }
-                                                if (filterListsNames.length > 0 && filterMode === 'Label') {
-                                                    for (var y = 0; y < filterListsNames.length; y++) {
-                                                        // if (accept)
-                                                        //     continue;
-                                                        if (!label.name.toLowerCase().stringContains(filterListsNames[y].trim().toLowerCase())) {
-                                                            accept = false;
-                                                        } else {
-                                                            nAccepted++;
-                                                            accept = true;
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-                                            });
-                                            labels.sort();
-                                            jsonLabels = sortByKeyDesc(jsonLabels, 'name');
-                                            if (chkANDORFilter && filterMode === 'Label') {
-                                                // AND filter: must match all filters
-                                                if (nAccepted < filterListsNames.length)
-                                                    accept = false;
-                                                else
-                                                    accept = true;
-                                            }
-                                            if (!accept) {
-                                                // filtering by label name
-                                                // console.log('FILTER2 label filter skipping card ' + card.name);
-                                                return true;
-                                            }
-
-                                            if (bExportChecklists) {
-                                                //all checklists
-                                                // console.log('Checklists: ' + card.idChecklists.length);
-                                                var checklists = [];
-                                                if (card.idChecklists !== undefined) {
-                                                    $.each(card.idChecklists, function(i, idchecklist) {
-                                                        if (idchecklist) {
-                                                            checklists.push(idchecklist);
-                                                        }
-                                                    });
-                                                }
-
-                                                //parse checklists
-                                                for (let i = 0; i < checklists.length; i++) {
-                                                    const checklistid = checklists[i];
-                                                    // console.log('PARSE ' + checklistid);
-                                                    for (let key = 0; key < card.checklists.length; key++) {
-                                                        const list = card.checklists[key];
-                                                        // console.log('list: ' + JSON.stringify(list));
-                                                        var list_id2 = list.id;
-                                                        if (list_id2 == checklistid) {
-                                                            var jsonCheckList = {};
-                                                            jsonCheckList.name = (exportFormat === 'HTML' ? html_encode(list.name) : list.name);
-                                                            jsonCheckList.items = [];
-                                                            checkListsText += list.name + ' (' + list.checkItems.length + ' items):\n';
-                                                            //checkitems: reordered (issue #4 https://github.com/trapias/trelloExport/issues/4)
-                                                            var orderedChecklists = Enumerable.From(list.checkItems)
-                                                                .OrderBy(function(x) {
-                                                                    return x.pos;
-                                                                })
-                                                                .ToArray();
-
-                                                            for (let i = 0; i < orderedChecklists.length; i++) {
-                                                                const item = orderedChecklists[i];
-                                                                if (item) {
-                                                                    var cItem = {};
-                                                                    cItem.name = item.name;
-                                                                    cItem.due = item.due;
-                                                                    cItem.state = item.state;
-                                                                    cItem.idMember = item.idMember;
-                                                                    if(item.idMember !== null){
-                                                                        var m = await getMember(item.idMember);
-                                                                        if(m !== null){
-                                                                            cItem.memberInitials = m.fullName;
-                                                                        }
-                                                                    }
-                                                                    else {
-                                                                        cItem.memberInitials = '';
-                                                                    }
-                                                                    
-                                                                    if (exportFormat === 'HTML') {
-                                                                        cItem.name = html_encode(cItem.name);
-                                                                    }
-                                                                    if (item.state == 'complete') {
-                                                                        // issue #5
-                                                                        // find who and when item was completed
-                                                                        var oCompletedBy = searchupdateCheckItemStateOnCardAction(item.id, card.actions);
-                                                                        checkListsText += ' - ' + item.name + ' [' + item.state + ' ' + (oCompletedBy.date ? oCompletedBy.date : '') + (oCompletedBy.by ? ' by ' + oCompletedBy.by : '') + ']\n';
-                                                                        cItem.completed = true;
-                                                                        cItem.completedDate = oCompletedBy.date;
-                                                                        cItem.completedBy = oCompletedBy.by;
-                                                                        jsonCheckList.items.push(cItem);
-
-                                                                    } else {
-                                                                        checkListsText += ' - ' + item.name + ' [' + item.state + ']\n';
-                                                                        cItem.completed = false;
-                                                                        jsonCheckList.items.push(cItem);
-                                                                    }
-                                                                }
-                                                            }
-                                                            jsonCheckLists.push(jsonCheckList);
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            var numberOfComments = 0;
-
-                                            if (bExportComments) {
-                                                //comments
-                                                var commentsOnCard = await getCommentCardActions(idBoard, card.id);
-                                                if (commentsOnCard) {
-                                                    // console.log('parsing comments');
-                                                    // console.log('parse ' + commentsOnCard.length + ' comment actions for this card ' + JSON.stringify(commentsOnCard));
-                                                    $.each(commentsOnCard, function(j, action) {
-                                                        if ((action.type == "commentCard" || action.type == 'copyCommentCard')) {
-                                                            if (card.id == action.data.card.id) {
-                                                                numberOfComments++;
-                                                                var jsonComment = {};
-                                                                //2013-08-08T06:57:18
-                                                                var d = new Date(action.date);
-                                                                if (d)
-                                                                    jsonComment.date = d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
-                                                                jsonComment.text = action.data.text;
-
-                                                                // Trello Plus Spent/Estimate in comments
-                                                                if(jsonComment.text.match(SpentEstRegex)){
-                                                                     var m = jsonComment.text.match(SpentEstRegex);
-                                                                     var cspent = m[1];
-                                                                     var cestimate = m[4];
-                                                                    //   console.log("SPENT: " + cspent + " EST: " + cestimate);
-                                                                      spent += Number(cspent);
-                                                                      estimate += Number(cestimate);
-                                                                    //   console.log("TOTAL SPENT: " + spent + " EST: " + estimate);
-                                                                }
-
-                                                                if (exportFormat === 'HTML') {
-                                                                    jsonComment.text = converter.makeHtml(html_encode(jsonComment.text));
-                                                                }
-                                                                var sActionDate = '';
-                                                                if (d)
-                                                                    sActionDate = d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
-                                                                if (action.memberCreator !== undefined) {
-                                                                    jsonComment.memberCreator = action.memberCreator;
-                                                                    if (jsonComment.memberCreator.fullName !== undefined) {
-                                                                        jsonComment.memberCreator.fullName = (exportFormat === 'HTML' ? html_encode(jsonComment.memberCreator.fullName) : jsonComment.memberCreator.fullName);
-                                                                    } else {
-                                                                        jsonComment.memberCreator.fullName = (exportFormat === 'HTML' ? html_encode(jsonComment.memberCreator.username) : jsonComment.memberCreator.username);
-                                                                    }
-
-                                                                    commentsText += '[' + sActionDate + ' - ' + (action.memberCreator.fullName !== undefined ? action.memberCreator.fullName : action.memberCreator.username) + '] ' + action.data.text + "\n";
-                                                                } else {
-                                                                    jsonComment.memberCreator = null;
-                                                                    commentsText += '[' + sActionDate + '] ' + action.data.text + "\n";
-                                                                }
-                                                                jsonComments.push(jsonComment);
-                                                            }
-                                                        }
-                                                    });
-                                                }
-                                            }
-
-                                            if (bExportAttachments) {
-                                                if (card.attachments) {
-                                                    // console.log('Attachments: ' + card.attachments.length);
-                                                    $.each(card.attachments, function(j, attach) {
-                                                        // console.log("attach: " + JSON.stringify(attach));
-                                                        attach.name = (exportFormat === 'HTML' ? html_encode(attach.name) : attach.name);
-                                                        jsonAttachments.push(attach);
-                                                        attachmentsText += '[' + attach.name + '] (' + attach.bytes + ') ' + attach.url + '\n';
-                                                    });
-                                                }
-                                            }
-
-                                            //pulled from https://github.com/bmccormack/export-for-trello/blob/5b2b8b102b98ed2c49241105cb9e00e44d4e1e86/trelloexport.js
-                                            //Get member created and DateTime created
-                                            var query = Enumerable.From(card.actions)
-                                                .Where(function(x) {
-                                                    if (x.data.card) {
-                                                        return x.data.card.id == card.id && x.type == "createCard";
-                                                    }
-                                                })
-                                                .ToArray();
-                                            if (query.length > 0) {
-                                                if (query[0].memberCreator !== undefined) {
-
-                                                    if (query[0].memberCreator.fullName !== undefined) {
-                                                        memberCreator = query[0].memberCreator.fullName + ' (' + query[0].memberCreator.username + ')';
-                                                    } else {
-                                                        memberCreator = query[0].memberCreator.username;
-                                                    }
-                                                    datetimeCreated = new Date(query[0].date);
-                                                }
-
-                                            } else {
-                                                //use the API to get the action created method
-                                                var actionCreateCard = await getCreateCardAction(idBoard, card.id);
-                                                if (actionCreateCard && actionCreateCard.memberCreator !== undefined) {
-                                                    memberCreator = (actionCreateCard.memberCreator.fullName !== undefined ? actionCreateCard.memberCreator.fullName : actionCreateCard.memberCreator.username);
-                                                    datetimeCreated = new Date(actionCreateCard.date);
-                                                } else {
-                                                    // calculate datetimeCreated from card id
-                                                    // cfr http://help.trello.com/article/759-getting-the-time-a-card-or-board-was-created
-                                                    datetimeCreated = new Date(1000 * parseInt(card.id.substring(0, 8), 16));
-                                                    memberCreator = "";
-                                                }
-                                            }
-
-                                            /**
-                                             * 1.9.14: handle multiple nameListDone
-                                             * e.g. Done, Finished
-                                             */
-                                            if (nameListDone === '') {
-                                                nameListDone = 'Done';
-                                            } // default
-                                            var allnameListDone = nameListDone.split(',');
-                                            for (var nd = 0; nd < allnameListDone.length; nd++) {
-                                                //console.log('check ' + nd + ') ' + allnameListDone[nd] + " VS memberDone " + memberDone);
-                                                if (memberDone === "") {
-                                                    //Find out when the card was most recently moved to any list whose name starts with "Done" (ignore case, e.g. 'done' or 'DONE' or 'DoNe')
-                                                    query = Enumerable.From(card.actions)
-                                                        .Where(function(x) {
-                                                            if (x.data.card && x.data.listAfter) {
-                                                                var listAfterName = x.data.listAfter.name;
-                                                                return x.data.card.id == card.id && listAfterName.toLowerCase().stringContains(allnameListDone[nd].trim().toLowerCase());
-                                                            }
-                                                        })
-                                                        .OrderByDescending(function(x) {
-                                                            return x.date;
-                                                        })
-                                                        .ToArray();
-                                                    //console.log('query.length: ' + query.length);
-                                                    if (query.length > 0 && query[0].memberCreator !== undefined) {
-                                                        memberDone = (query[0].memberCreator.fullName !== undefined ? query[0].memberCreator.fullName : query[0].memberCreator.username);
-                                                        datetimeDone = query[0].date;
-                                                    } else {
-                                                        var actionMoveCard = await getMoveCardAction(idBoard, card.id, allnameListDone[nd].trim());
-                                                        if (actionMoveCard && actionMoveCard.memberCreator !== undefined) {
-                                                            memberDone = (actionMoveCard.memberCreator.fullName !== undefined ? actionMoveCard.memberCreator.fullName : actionMoveCard.memberCreator.username);
-                                                            datetimeDone = actionMoveCard.date;
-                                                        } else {
-                                                            memberDone = "";
-                                                            datetimeDone = "";
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            var completionTime = "",
-                                                completionTimeText = "";
-                                            if (datetimeDone !== "" && datetimeCreated !== "") {
-                                                // var d1 = new Date(datetimeCreated);
-                                                var d2 = new Date(datetimeDone);
-                                                var df = new DateDiff(d2, datetimeCreated);
-                                                // PnYnMnDTnHnMnS ISO8601 -> PnDTnHnMnS
-                                                completionTime = "P" + df.days + "DT" + df.hours + "H" + df.minutes + "M" + df.seconds + "S";
-                                                completionTimeText = df.days + ' days, ' + df.hours + ' hours, ' + df.minutes + ' minutes, ' + df.seconds + ' seconds';
-                                                datetimeCreated = datetimeCreated.toLocaleDateString() + ' ' + datetimeCreated.toLocaleTimeString();
-                                                datetimeDone = d2.toLocaleDateString() + ' ' + d2.toLocaleTimeString();
-                                            } else {
-                                                if (datetimeCreated) {
-                                                    datetimeCreated = datetimeCreated.toLocaleDateString() + ' ' + datetimeCreated.toLocaleTimeString();
-                                                }
-                                            }
-
-                                            var isArchived = false;
-                                            if (list.closed || card.closed) {
-                                                isArchived = true;
-                                            }
-
-                                            var dateLastActivity = new Date(card.dateLastActivity);
-
-                                            if (exportFormat === 'HTML') {
-                                                card.desc = converter.makeHtml(html_encode(card.desc));
-                                            }
-
-                                            var rowData = {
-                                                'organizationName': orgName,
-                                                'boardName': (exportFormat === 'HTML' ? html_encode(boardName) : boardName),
-                                                'listName': (exportFormat === 'HTML' ? html_encode(listName) : listName),
-                                                'cardID': card.idShort,
-                                                'title': (exportFormat === 'HTML' ? html_encode(title) : title),
-                                                'shortLink': 'https://trello.com/c/' + card.shortLink,
-                                                'cardDescription': (exportFormat === 'XLSX' && card.desc ? card.desc.substr(0, MAXCHARSPERCELL) : card.desc),
-                                                'checkLists': (exportFormat === 'XLSX' && checkListsText !== undefined && checkListsText !== '' ? checkListsText.substr(0, MAXCHARSPERCELL) : checkListsText),
-                                                'numberOfComments': numberOfComments,
-                                                'comments': (exportFormat === 'XLSX' && commentsText !== undefined && commentsText !== '' ? commentsText.substr(0, MAXCHARSPERCELL) : commentsText),
-                                                'attachments': (exportFormat === 'XLSX' && attachmentsText !== undefined && attachmentsText !== '' ? attachmentsText.substr(0, MAXCHARSPERCELL) : attachmentsText),
-                                                'votes': card.idMembersVoted.length,
-                                                'spent': spent,
-                                                'estimate': estimate,
-                                                'points_estimate': points_estimate,
-                                                'points_consumed': points_consumed,
-                                                'datetimeCreated': datetimeCreated,
-                                                'memberCreator': memberCreator,
-                                                'LastActivity': dateLastActivity.toLocaleDateString() + ' ' + dateLastActivity.toLocaleTimeString(),
-                                                //'due': (card.due ? new Date(card.due).toLocaleDateString() + ' ' + new Date(card.due).toLocaleTimeString() : ''),
-                                                'start': (card.start ? new Date(card.start) : ''),
-                                                'due': (card.due ? new Date(card.due) : ''),
-                                                'dueComplete': card.dueComplete,
-                                                'datetimeDone': datetimeDone,
-                                                'memberDone': memberDone,
-                                                'completionTime': completionTime,
-                                                'completionTimeText': completionTimeText,
-                                                'memberInitials': memberInitials.toString(),
-                                                'labels': labels,
-                                                'isArchived': isArchived,
-                                                'jsonCheckLists': jsonCheckLists,
-                                                'jsonComments': jsonComments,
-                                                'jsonAttachments': jsonAttachments,
-                                                'customFields': [],
-                                                'jsonLabels': jsonLabels
-                                            };
-                                            if (bExportCustomFields) {
-                                                // load custom fields values for card
-                                                var cfVals = await loadCardCustomFields(card.id);
-
-                                                cfVals.forEach(function(dv) {
-                                                    rowData.customFields.push({
-                                                        name: (exportFormat === 'HTML' ? html_encode(dv.colName) : dv.colName),
-                                                        value: (exportFormat === 'HTML' ? html_encode(dv.value) : dv.value)
-                                                    });
-                                                    rowData[dv.colName] = dv.value;
-                                                });
-
-                                            }
-                                            // console.log('RAWDATA ' + JSON.stringify(rowData));
-                                        jsonComputedCards.push(rowData);
-                                    }
-                                    else {
-                                        console.log('Skipping card ' + card.id + ' because it is not in the selected lists, exportedCardsIDs: ' + exportedCardsIDs);
-                                        console.log('card.idList ' + card.idList + '!= list_id ' + list_id);
-                                    }
-                                }
-
-                        } catch (error) {
-                            console.error("Error: ", error);
-
-                            // Handle specific errors
-                            if (error.status === 403) {
-                                // 403 can be Trello's rate limiting on heavy requests
-                                $.growl.error({
-                                    title: "Request Blocked (403)",
-                                    message: 'List "' + listName + '" could not be loaded. This may happen with large lists. Try selecting fewer columns or exporting fewer lists.',
-                                    fixed: true,
-                                    duration: 15000
-                                });
-                            } else if (error.status === 429) {
-                                $.growl.error({
-                                    title: "Rate Limit Error",
-                                    message: 'Too many requests. Please wait a moment and try again with fewer items selected.',
-                                    fixed: true,
-                                    duration: 10000
-                                });
-                            } else if (error.status === 504 || error.statusText === 'timeout') {
-                                $.growl.error({
-                                    title: "Timeout Error",
-                                    message: 'Request timed out. Try exporting fewer cards or lists at once.',
-                                    fixed: true,
-                                    duration: 10000
-                                });
-                            } else {
-                                $.growl.error({
-                                    title: "TrelloExport",
-                                    message: error.statusText + ' ' + error.status + ': ' + error.responseText,
-                                    fixed: true
-                                });
-                            }
-                        }
-                    // cards processing end
-                    
-                    } // end if (shouldProcessList)
-
-                }
-
-            } catch (error) {
-                console.error("Error: ", error);
-                $.growl.error({
-                    title: "TrelloExport",
-                    message: error.statusText + ' ' + error.status + ': ' + error.responseText,
-                    fixed: true
-                });
-            }
-
-            // end loop boards
-            nProcessedBoards++;
-        }
-
-        console.log('Processed ' + nProcessedLists + ' lists and ' + nProcessedCards + ' cards');
-        console.log("The End. Now export.");
-
-        $.growl.notice({
-            title: "TrelloExport",
-            message: 'Done. Processed ' + nProcessedLists + ' lists and ' + nProcessedCards + ' cards in ' + nProcessedBoards + (nProcessedBoards > 1 ? ' boards.' : ' board.'),
-            fixed: false
-        });
-
-        switch (exportFormat) {
-
-            case 'XLSX':
-                await createExcelExport(jsonComputedCards, iExcelItemsAsRows, allColumns, selectedColumns, bExportCustomFields, false);
-                break;
-
-            case 'MD':
-                createMarkdownExport(jsonComputedCards, true, bckHTMLCardInfo, bchkHTMLInlineImages, bExportCustomFields);
-                break;
-
-            case 'HTML':
-                createHTMLExport(jsonComputedCards, bckHTMLCardInfo, bchkHTMLInlineImages, css, templateURL, bExportCustomFields);
-                break;
-
-            case 'OPML':
-                createOPMLExport(jsonComputedCards, bExportCustomFields);
-                break;
-
-            case 'CSV':
-                var data = await createExcelExport(jsonComputedCards, iExcelItemsAsRows, allColumns, selectedColumns, bExportCustomFields, true);
-                createCSVExport(data, bexportArchived);
-                break;
-
-            default:
-                console.log('Unknown exportFormat requested');
-                $.growl.error({
-                    title: "TrelloExport",
-                    message: 'Unknown exportFormat requested',
-                    fixed: true
-                });
-                break;
-        }
-
-    } catch (error) {
-        console.error('Error in loadData:', error);
-        $.growl.error({
-            title: "TrelloExport",
-            message: "An error occurred while loading data: " + error.message,
-            fixed: true
-        });
+    if (exportboards.length === 0) {
+      // export just current board
+      exportboards.push(idBoard);
     }
-    // End loadData
+
+    // loop boards
+    for (var iBoard = 0; iBoard < exportboards.length; iBoard++) {
+      console.log("Export board " + exportboards[iBoard]);
+      idBoard = exportboards[iBoard];
+
+      var boardData = await getBoardData(idBoard);
+      var boardName = boardData.name;
+      var orgName = "";
+      if (oOrganizations) {
+        var oOData = oOrganizations.find(function (obj) {
+          return obj.id === boardData.idOrganization;
+        });
+        if (oOData) orgName = oOData.displayName;
+      } else {
+        orgName = "Personal Boards";
+      }
+
+      var readCards = 0;
+
+      var apiURL =
+        "https://trello.com/1/boards/" +
+        idBoard +
+        "/lists?fields=name,closed&filter=all"; //"?lists=all&cards=all&card_fields=all&card_checklists=all&members=all&member_fields=all&membersInvited=all&checklists=all&organization=true&organization_fields=all&fields=all&actions=commentCard%2CcopyCommentCard%2CupdateCheckItemStateOnCard&card_attachments=true";
+
+      try {
+        const data = await $.ajax({
+          headers: { "x-trello-user-agent-extension": "TrelloExport" },
+          url: apiURL,
+        });
+
+        console.log("DONE: got " + data.length + " lists");
+
+        // if (!bexportArchived) {
+        //     if (data.closed) {
+        //         console.log('Skip archived Board ' + data.id);
+        //         return true;
+        //     }
+        // }
+
+        for (const list of data) {
+          var list_id = list.id;
+          var listName = list.name;
+          var shouldProcessList = true;
+
+          if (!bexportArchived) {
+            if (list.closed) {
+              // console.log('skip archived list ' + listName);
+              shouldProcessList = false;
+            }
+          }
+
+          if (shouldProcessList && exportlists.length > 0) {
+            if ($.inArray(list_id, exportlists) === -1) {
+              console.log("skip list " + listName);
+              shouldProcessList = false;
+            }
+          }
+
+          // 1.9.14: filter lists by name
+          if (shouldProcessList) {
+            var accept = true,
+              nListAccepted = 0;
+            if (filterListsNames.length > 0 && filterMode === "List") {
+              for (var y = 0; y < filterListsNames.length; y++) {
+                if (
+                  !listName
+                    .toLowerCase()
+                    .stringContains(filterListsNames[y].trim().toLowerCase())
+                ) {
+                  accept = false;
+                } else {
+                  accept = true;
+                  nListAccepted++;
+                  // break;
+                }
+              }
+            }
+            if (chkANDORFilter && filterMode === "List") {
+              // AND filter: must match all filters
+              if (nListAccepted < filterListsNames.length) accept = false;
+              else accept = true;
+            }
+            if (!accept) {
+              console.log("skipping not accepted list " + listName);
+              shouldProcessList = false;
+            }
+          }
+
+          if (shouldProcessList) {
+            console.log("processing list " + listName);
+            nProcessedLists++;
+
+            // tag archived lists
+            if (list.closed) {
+              listName = "[archived] " + listName;
+            }
+
+            var exportedCardsIDs = [];
+            var processedCardIds = {}; // Track cards we've already seen
+
+            // Only process cards if the list should be processed
+            // Note: Pagination with 'before' doesn't work well for /lists/{id}/cards endpoint
+            // We'll get all cards in one request instead
+            readCards = 0;
+
+            try {
+              // Build API URL with optimized parameters based on selected columns
+              var cardsApiUrl =
+                "https://trello.com/1/lists/" +
+                list_id +
+                "/cards?limit=1000&filter=all&fields=" +
+                apiParams.fields +
+                apiParams.params;
+
+              const datacards = await $.ajax({
+                headers: { "x-trello-user-agent-extension": "TrelloExport" },
+                url: cardsApiUrl,
+                timeout: 60000,
+              });
+
+              readCards = datacards.length;
+              console.log(
+                "evaluating " + datacards.length + " cards in list " + listName,
+              );
+
+              // Iterate through each card and transform data as needed
+              for (let i = 0; i < datacards.length; i++) {
+                const card = datacards[i];
+
+                // console.log('=-=-=-=-=-=-=-=>>>>> I = ' + i);
+
+                // Skip if we've already processed this card
+                if (processedCardIds[card.id]) {
+                  console.log("Skipping already processed card " + card.id);
+                  continue;
+                }
+                processedCardIds[card.id] = true;
+
+                if (card.idList == list_id) {
+                  if (!bexportArchived) {
+                    if (card.closed) {
+                      console.log("Skip archived card " + card.name);
+                      continue;
+                    }
+                  }
+
+                  //export selected cards only option
+                  if (exportcards.length > 0) {
+                    if ($.inArray(card.id, exportcards) === -1) {
+                      console.log("skip card " + card.id);
+                      continue;
+                    }
+                  }
+
+                  var accept = true,
+                    nCardAccepted = 0;
+                  if (filterListsNames.length > 0 && filterMode === "Card") {
+                    for (var y = 0; y < filterListsNames.length; y++) {
+                      if (
+                        !card.name
+                          .toLowerCase()
+                          .stringContains(
+                            filterListsNames[y].trim().toLowerCase(),
+                          )
+                      ) {
+                        accept = false;
+                      } else {
+                        accept = true;
+                        nCardAccepted++;
+                        // break;
+                      }
+                    }
+                  }
+                  if (chkANDORFilter && filterMode === "Card") {
+                    // AND filter: must match all filters
+                    if (nCardAccepted < filterListsNames.length) accept = false;
+                    else accept = true;
+                  }
+                  if (!accept) {
+                    console.log("skipping card " + card.name);
+                    return true;
+                  }
+
+                  exportedCardsIDs.push(card.id);
+                  var title = card.name;
+
+                  console.log(
+                    i +
+                      ") Card #" +
+                      card.idShort +
+                      " " +
+                      title +
+                      " (" +
+                      card.id +
+                      ") - POS: " +
+                      card.pos,
+                  );
+                  nProcessedCards++;
+
+                  var spent = 0;
+                  var estimate = 0;
+                  var checkListsText = "",
+                    commentsText = "",
+                    attachmentsText = "",
+                    memberCreator = "",
+                    datetimeCreated = null,
+                    memberDone = "",
+                    datetimeDone = "",
+                    jsonCheckLists = [],
+                    jsonComments = [],
+                    jsonAttachments = [];
+
+                  // Trello Plus Spent/Estimate
+                  if (title.match(SpentEstRegex)) {
+                    var m = title.match(SpentEstRegex);
+                    var cspent = m[1];
+                    var cestimate = m[4];
+                    //   console.log("SPENT: " + cspent + " EST: " + cestimate);
+                    spent += Number(cspent);
+                    estimate += Number(cestimate);
+                    //   console.log("TOTAL SPENT: " + spent + " EST: " + estimate);
+                  }
+
+                  // spent = extractFloat(title, SpentEstRegex, 2);
+                  // if (typeof spent !== 'number' || isNaN(spent))
+                  //     spent = 0;
+
+                  // estimate = extractFloat(title, SpentEstRegex, 3);
+                  // if (typeof estimate !== 'number' || isNaN(estimate))
+                  //     estimate = 0;
+
+                  // Scrum for Trello Points Estimate/Consumed
+                  points_estimate = extractFloat(title, PointsEstRegex, 2);
+                  if (
+                    typeof points_estimate !== "number" ||
+                    isNaN(points_estimate)
+                  )
+                    points_estimate = 0;
+
+                  points_consumed = extractFloat(title, PointsConRegex, 2);
+                  if (
+                    typeof points_consumed !== "number" ||
+                    isNaN(points_consumed)
+                  )
+                    points_consumed = 0;
+
+                  // Clean-up title
+                  title = title.replace(SpentEstRegex, "");
+                  title = title.replace(PointsEstRegex, "");
+                  title = title.replace(PointsConRegex, "");
+                  title = title.trim();
+
+                  // tag archived cards
+                  if (card.closed) {
+                    title = "[archived] " + title;
+                  }
+                  var due = card.due || null;
+
+                  //Get all the Member IDs
+                  // console.log('Members: ' + card.idMembers.length);
+                  var memberIDs = card.idMembers;
+                  var memberInitials = [];
+                  $.each(memberIDs, function (i, memberID) {
+                    $.each(card.members, function (key, member) {
+                      if (member.id == memberID) {
+                        if (member.fullName !== undefined) {
+                          memberInitials.push(member.fullName); // initials, username or fullName
+                        } else {
+                          if (member.username !== undefined) {
+                            memberInitials.push(member.username);
+                          }
+                        }
+                      }
+                    });
+                  });
+
+                  //Get all labels
+                  var labels = [],
+                    jsonLabels = [],
+                    nAccepted = 0;
+                  if (
+                    card.labels.length <= 0 &&
+                    filterListsNames.length > 0 &&
+                    filterMode === "Label"
+                  ) {
+                    // filtering by label name: skip cards without labels
+                    accept = false;
+                    return true;
+                  }
+
+                  if (filterListsNames.length > 0 && filterMode === "Label")
+                    accept = false;
+
+                  $.each(card.labels, function (i, label) {
+                    jsonLabels.push(label);
+                    if (label.name) {
+                      labels.push(label.name);
+                    } else {
+                      labels.push(label.color);
+                    }
+                    if (filterListsNames.length > 0 && filterMode === "Label") {
+                      for (var y = 0; y < filterListsNames.length; y++) {
+                        // if (accept)
+                        //     continue;
+                        if (
+                          !label.name
+                            .toLowerCase()
+                            .stringContains(
+                              filterListsNames[y].trim().toLowerCase(),
+                            )
+                        ) {
+                          accept = false;
+                        } else {
+                          nAccepted++;
+                          accept = true;
+                          break;
+                        }
+                      }
+                    }
+                  });
+                  labels.sort();
+                  jsonLabels = sortByKeyDesc(jsonLabels, "name");
+                  if (chkANDORFilter && filterMode === "Label") {
+                    // AND filter: must match all filters
+                    if (nAccepted < filterListsNames.length) accept = false;
+                    else accept = true;
+                  }
+                  if (!accept) {
+                    // filtering by label name
+                    // console.log('FILTER2 label filter skipping card ' + card.name);
+                    return true;
+                  }
+
+                  if (bExportChecklists) {
+                    //all checklists
+                    // console.log('Checklists: ' + card.idChecklists.length);
+                    var checklists = [];
+                    if (card.idChecklists !== undefined) {
+                      $.each(card.idChecklists, function (i, idchecklist) {
+                        if (idchecklist) {
+                          checklists.push(idchecklist);
+                        }
+                      });
+                    }
+
+                    //parse checklists
+                    for (let i = 0; i < checklists.length; i++) {
+                      const checklistid = checklists[i];
+                      // console.log('PARSE ' + checklistid);
+                      for (let key = 0; key < card.checklists.length; key++) {
+                        const list = card.checklists[key];
+                        // console.log('list: ' + JSON.stringify(list));
+                        var list_id2 = list.id;
+                        if (list_id2 == checklistid) {
+                          var jsonCheckList = {};
+                          jsonCheckList.name =
+                            exportFormat === "HTML"
+                              ? html_encode(list.name)
+                              : list.name;
+                          jsonCheckList.items = [];
+                          checkListsText +=
+                            list.name +
+                            " (" +
+                            list.checkItems.length +
+                            " items):\n";
+                          //checkitems: reordered (issue #4 https://github.com/trapias/trelloExport/issues/4)
+                          var orderedChecklists = Enumerable.From(
+                            list.checkItems,
+                          )
+                            .OrderBy(function (x) {
+                              return x.pos;
+                            })
+                            .ToArray();
+
+                          for (let i = 0; i < orderedChecklists.length; i++) {
+                            const item = orderedChecklists[i];
+                            if (item) {
+                              var cItem = {};
+                              cItem.name = item.name;
+                              cItem.due = item.due;
+                              cItem.state = item.state;
+                              cItem.idMember = item.idMember;
+                              if (item.idMember !== null) {
+                                var m = await getMember(item.idMember);
+                                if (m !== null) {
+                                  cItem.memberInitials = m.fullName;
+                                }
+                              } else {
+                                cItem.memberInitials = "";
+                              }
+
+                              if (exportFormat === "HTML") {
+                                cItem.name = html_encode(cItem.name);
+                              }
+                              if (item.state == "complete") {
+                                // issue #5
+                                // find who and when item was completed
+                                var oCompletedBy =
+                                  searchupdateCheckItemStateOnCardAction(
+                                    item.id,
+                                    card.actions,
+                                  );
+                                checkListsText +=
+                                  " - " +
+                                  item.name +
+                                  " [" +
+                                  item.state +
+                                  " " +
+                                  (oCompletedBy.date ? oCompletedBy.date : "") +
+                                  (oCompletedBy.by
+                                    ? " by " + oCompletedBy.by
+                                    : "") +
+                                  "]\n";
+                                cItem.completed = true;
+                                cItem.completedDate = oCompletedBy.date;
+                                cItem.completedBy = oCompletedBy.by;
+                                jsonCheckList.items.push(cItem);
+                              } else {
+                                checkListsText +=
+                                  " - " + item.name + " [" + item.state + "]\n";
+                                cItem.completed = false;
+                                jsonCheckList.items.push(cItem);
+                              }
+                            }
+                          }
+                          jsonCheckLists.push(jsonCheckList);
+                        }
+                      }
+                    }
+                  }
+
+                  var numberOfComments = 0;
+
+                  if (bExportComments) {
+                    //comments
+                    var commentsOnCard = await getCommentCardActions(
+                      idBoard,
+                      card.id,
+                    );
+                    if (commentsOnCard) {
+                      // console.log('parsing comments');
+                      // console.log('parse ' + commentsOnCard.length + ' comment actions for this card ' + JSON.stringify(commentsOnCard));
+                      $.each(commentsOnCard, function (j, action) {
+                        if (
+                          action.type == "commentCard" ||
+                          action.type == "copyCommentCard"
+                        ) {
+                          if (card.id == action.data.card.id) {
+                            numberOfComments++;
+                            var jsonComment = {};
+                            //2013-08-08T06:57:18
+                            var d = new Date(action.date);
+                            if (d)
+                              jsonComment.date =
+                                d.toLocaleDateString() +
+                                " " +
+                                d.toLocaleTimeString();
+                            jsonComment.text = action.data.text;
+
+                            // Trello Plus Spent/Estimate in comments
+                            if (jsonComment.text.match(SpentEstRegex)) {
+                              var m = jsonComment.text.match(SpentEstRegex);
+                              var cspent = m[1];
+                              var cestimate = m[4];
+                              //   console.log("SPENT: " + cspent + " EST: " + cestimate);
+                              spent += Number(cspent);
+                              estimate += Number(cestimate);
+                              //   console.log("TOTAL SPENT: " + spent + " EST: " + estimate);
+                            }
+
+                            if (exportFormat === "HTML") {
+                              jsonComment.text = converter.makeHtml(
+                                html_encode(jsonComment.text),
+                              );
+                            }
+                            var sActionDate = "";
+                            if (d)
+                              sActionDate =
+                                d.toLocaleDateString() +
+                                " " +
+                                d.toLocaleTimeString();
+                            if (action.memberCreator !== undefined) {
+                              jsonComment.memberCreator = action.memberCreator;
+                              if (
+                                jsonComment.memberCreator.fullName !== undefined
+                              ) {
+                                jsonComment.memberCreator.fullName =
+                                  exportFormat === "HTML"
+                                    ? html_encode(
+                                        jsonComment.memberCreator.fullName,
+                                      )
+                                    : jsonComment.memberCreator.fullName;
+                              } else {
+                                jsonComment.memberCreator.fullName =
+                                  exportFormat === "HTML"
+                                    ? html_encode(
+                                        jsonComment.memberCreator.username,
+                                      )
+                                    : jsonComment.memberCreator.username;
+                              }
+
+                              commentsText +=
+                                "[" +
+                                sActionDate +
+                                " - " +
+                                (action.memberCreator.fullName !== undefined
+                                  ? action.memberCreator.fullName
+                                  : action.memberCreator.username) +
+                                "] " +
+                                action.data.text +
+                                "\n";
+                            } else {
+                              jsonComment.memberCreator = null;
+                              commentsText +=
+                                "[" +
+                                sActionDate +
+                                "] " +
+                                action.data.text +
+                                "\n";
+                            }
+                            jsonComments.push(jsonComment);
+                          }
+                        }
+                      });
+                    }
+                  }
+
+                  if (bExportAttachments) {
+                    if (card.attachments) {
+                      // console.log('Attachments: ' + card.attachments.length);
+                      $.each(card.attachments, function (j, attach) {
+                        // console.log("attach: " + JSON.stringify(attach));
+                        attach.name =
+                          exportFormat === "HTML"
+                            ? html_encode(attach.name)
+                            : attach.name;
+                        jsonAttachments.push(attach);
+                        attachmentsText +=
+                          "[" +
+                          attach.name +
+                          "] (" +
+                          attach.bytes +
+                          ") " +
+                          attach.url +
+                          "\n";
+                      });
+                    }
+                  }
+
+                  //pulled from https://github.com/bmccormack/export-for-trello/blob/5b2b8b102b98ed2c49241105cb9e00e44d4e1e86/trelloexport.js
+                  //Get member created and DateTime created
+                  var query = Enumerable.From(card.actions)
+                    .Where(function (x) {
+                      if (x.data.card) {
+                        return (
+                          x.data.card.id == card.id && x.type == "createCard"
+                        );
+                      }
+                    })
+                    .ToArray();
+                  if (query.length > 0) {
+                    if (query[0].memberCreator !== undefined) {
+                      if (query[0].memberCreator.fullName !== undefined) {
+                        memberCreator =
+                          query[0].memberCreator.fullName +
+                          " (" +
+                          query[0].memberCreator.username +
+                          ")";
+                      } else {
+                        memberCreator = query[0].memberCreator.username;
+                      }
+                      datetimeCreated = new Date(query[0].date);
+                    }
+                  } else {
+                    //use the API to get the action created method
+                    var actionCreateCard = await getCreateCardAction(
+                      idBoard,
+                      card.id,
+                    );
+                    if (
+                      actionCreateCard &&
+                      actionCreateCard.memberCreator !== undefined
+                    ) {
+                      memberCreator =
+                        actionCreateCard.memberCreator.fullName !== undefined
+                          ? actionCreateCard.memberCreator.fullName
+                          : actionCreateCard.memberCreator.username;
+                      datetimeCreated = new Date(actionCreateCard.date);
+                    } else {
+                      // calculate datetimeCreated from card id
+                      // cfr http://help.trello.com/article/759-getting-the-time-a-card-or-board-was-created
+                      datetimeCreated = new Date(
+                        1000 * parseInt(card.id.substring(0, 8), 16),
+                      );
+                      memberCreator = "";
+                    }
+                  }
+
+                  /**
+                   * 1.9.14: handle multiple nameListDone
+                   * e.g. Done, Finished
+                   */
+                  if (nameListDone === "") {
+                    nameListDone = "Done";
+                  } // default
+                  var allnameListDone = nameListDone.split(",");
+                  for (var nd = 0; nd < allnameListDone.length; nd++) {
+                    //console.log('check ' + nd + ') ' + allnameListDone[nd] + " VS memberDone " + memberDone);
+                    if (memberDone === "") {
+                      //Find out when the card was most recently moved to any list whose name starts with "Done" (ignore case, e.g. 'done' or 'DONE' or 'DoNe')
+                      query = Enumerable.From(card.actions)
+                        .Where(function (x) {
+                          if (x.data.card && x.data.listAfter) {
+                            var listAfterName = x.data.listAfter.name;
+                            return (
+                              x.data.card.id == card.id &&
+                              listAfterName
+                                .toLowerCase()
+                                .stringContains(
+                                  allnameListDone[nd].trim().toLowerCase(),
+                                )
+                            );
+                          }
+                        })
+                        .OrderByDescending(function (x) {
+                          return x.date;
+                        })
+                        .ToArray();
+                      //console.log('query.length: ' + query.length);
+                      if (
+                        query.length > 0 &&
+                        query[0].memberCreator !== undefined
+                      ) {
+                        memberDone =
+                          query[0].memberCreator.fullName !== undefined
+                            ? query[0].memberCreator.fullName
+                            : query[0].memberCreator.username;
+                        datetimeDone = query[0].date;
+                      } else {
+                        var actionMoveCard = await getMoveCardAction(
+                          idBoard,
+                          card.id,
+                          allnameListDone[nd].trim(),
+                        );
+                        if (
+                          actionMoveCard &&
+                          actionMoveCard.memberCreator !== undefined
+                        ) {
+                          memberDone =
+                            actionMoveCard.memberCreator.fullName !== undefined
+                              ? actionMoveCard.memberCreator.fullName
+                              : actionMoveCard.memberCreator.username;
+                          datetimeDone = actionMoveCard.date;
+                        } else {
+                          memberDone = "";
+                          datetimeDone = "";
+                        }
+                      }
+                    }
+                  }
+
+                  var completionTime = "",
+                    completionTimeText = "";
+                  if (datetimeDone !== "" && datetimeCreated !== "") {
+                    // var d1 = new Date(datetimeCreated);
+                    var d2 = new Date(datetimeDone);
+                    var df = new DateDiff(d2, datetimeCreated);
+                    // PnYnMnDTnHnMnS ISO8601 -> PnDTnHnMnS
+                    completionTime =
+                      "P" +
+                      df.days +
+                      "DT" +
+                      df.hours +
+                      "H" +
+                      df.minutes +
+                      "M" +
+                      df.seconds +
+                      "S";
+                    completionTimeText =
+                      df.days +
+                      " days, " +
+                      df.hours +
+                      " hours, " +
+                      df.minutes +
+                      " minutes, " +
+                      df.seconds +
+                      " seconds";
+                    datetimeCreated =
+                      datetimeCreated.toLocaleDateString() +
+                      " " +
+                      datetimeCreated.toLocaleTimeString();
+                    datetimeDone =
+                      d2.toLocaleDateString() + " " + d2.toLocaleTimeString();
+                  } else {
+                    if (datetimeCreated) {
+                      datetimeCreated =
+                        datetimeCreated.toLocaleDateString() +
+                        " " +
+                        datetimeCreated.toLocaleTimeString();
+                    }
+                  }
+
+                  var isArchived = false;
+                  if (list.closed || card.closed) {
+                    isArchived = true;
+                  }
+
+                  var dateLastActivity = new Date(card.dateLastActivity);
+
+                  if (exportFormat === "HTML") {
+                    card.desc = converter.makeHtml(html_encode(card.desc));
+                  }
+
+                  var rowData = {
+                    organizationName: orgName,
+                    boardName:
+                      exportFormat === "HTML"
+                        ? html_encode(boardName)
+                        : boardName,
+                    listName:
+                      exportFormat === "HTML"
+                        ? html_encode(listName)
+                        : listName,
+                    cardID: card.idShort,
+                    title: exportFormat === "HTML" ? html_encode(title) : title,
+                    shortLink: "https://trello.com/c/" + card.shortLink,
+                    cardDescription:
+                      exportFormat === "XLSX" && card.desc
+                        ? card.desc.substr(0, MAXCHARSPERCELL)
+                        : card.desc,
+                    checkLists:
+                      exportFormat === "XLSX" &&
+                      checkListsText !== undefined &&
+                      checkListsText !== ""
+                        ? checkListsText.substr(0, MAXCHARSPERCELL)
+                        : checkListsText,
+                    numberOfComments: numberOfComments,
+                    comments:
+                      exportFormat === "XLSX" &&
+                      commentsText !== undefined &&
+                      commentsText !== ""
+                        ? commentsText.substr(0, MAXCHARSPERCELL)
+                        : commentsText,
+                    attachments:
+                      exportFormat === "XLSX" &&
+                      attachmentsText !== undefined &&
+                      attachmentsText !== ""
+                        ? attachmentsText.substr(0, MAXCHARSPERCELL)
+                        : attachmentsText,
+                    votes: card.idMembersVoted.length,
+                    spent: spent,
+                    estimate: estimate,
+                    points_estimate: points_estimate,
+                    points_consumed: points_consumed,
+                    datetimeCreated: datetimeCreated,
+                    memberCreator: memberCreator,
+                    LastActivity:
+                      dateLastActivity.toLocaleDateString() +
+                      " " +
+                      dateLastActivity.toLocaleTimeString(),
+                    //'due': (card.due ? new Date(card.due).toLocaleDateString() + ' ' + new Date(card.due).toLocaleTimeString() : ''),
+                    start: card.start ? new Date(card.start) : "",
+                    due: card.due ? new Date(card.due) : "",
+                    dueComplete: card.dueComplete,
+                    datetimeDone: datetimeDone,
+                    memberDone: memberDone,
+                    completionTime: completionTime,
+                    completionTimeText: completionTimeText,
+                    memberInitials: memberInitials.toString(),
+                    labels: labels,
+                    isArchived: isArchived,
+                    jsonCheckLists: jsonCheckLists,
+                    jsonComments: jsonComments,
+                    jsonAttachments: jsonAttachments,
+                    customFields: [],
+                    jsonLabels: jsonLabels,
+                  };
+                  if (bExportCustomFields) {
+                    // load custom fields values for card
+                    var cfVals = await loadCardCustomFields(card.id);
+
+                    cfVals.forEach(function (dv) {
+                      rowData.customFields.push({
+                        name:
+                          exportFormat === "HTML"
+                            ? html_encode(dv.colName)
+                            : dv.colName,
+                        value:
+                          exportFormat === "HTML"
+                            ? html_encode(dv.value)
+                            : dv.value,
+                      });
+                      rowData[dv.colName] = dv.value;
+                    });
+                  }
+                  // console.log('RAWDATA ' + JSON.stringify(rowData));
+                  jsonComputedCards.push(rowData);
+                } else {
+                  console.log(
+                    "Skipping card " +
+                      card.id +
+                      " because it is not in the selected lists, exportedCardsIDs: " +
+                      exportedCardsIDs,
+                  );
+                  console.log(
+                    "card.idList " + card.idList + "!= list_id " + list_id,
+                  );
+                }
+              }
+            } catch (error) {
+              console.error("Error: ", error);
+
+              // Handle specific errors
+              if (error.status === 403) {
+                // 403 can be Trello's rate limiting on heavy requests
+                $.growl.error({
+                  title: "Request Blocked (403)",
+                  message:
+                    'List "' +
+                    listName +
+                    '" could not be loaded. This may happen with large lists. Try selecting fewer columns or exporting fewer lists.',
+                  fixed: true,
+                  duration: 15000,
+                });
+              } else if (error.status === 429) {
+                $.growl.error({
+                  title: "Rate Limit Error",
+                  message:
+                    "Too many requests. Please wait a moment and try again with fewer items selected.",
+                  fixed: true,
+                  duration: 10000,
+                });
+              } else if (
+                error.status === 504 ||
+                error.statusText === "timeout"
+              ) {
+                $.growl.error({
+                  title: "Timeout Error",
+                  message:
+                    "Request timed out. Try exporting fewer cards or lists at once.",
+                  fixed: true,
+                  duration: 10000,
+                });
+              } else {
+                $.growl.error({
+                  title: "TrelloExport",
+                  message:
+                    error.statusText +
+                    " " +
+                    error.status +
+                    ": " +
+                    error.responseText,
+                  fixed: true,
+                });
+              }
+            }
+            // cards processing end
+          } // end if (shouldProcessList)
+        }
+      } catch (error) {
+        console.error("Error: ", error);
+        $.growl.error({
+          title: "TrelloExport",
+          message:
+            error.statusText + " " + error.status + ": " + error.responseText,
+          fixed: true,
+        });
+      }
+
+      // end loop boards
+      nProcessedBoards++;
+    }
+
+    console.log(
+      "Processed " +
+        nProcessedLists +
+        " lists and " +
+        nProcessedCards +
+        " cards",
+    );
+    console.log("The End. Now export.");
+
+    $.growl.notice({
+      title: "TrelloExport",
+      message:
+        "Done. Processed " +
+        nProcessedLists +
+        " lists and " +
+        nProcessedCards +
+        " cards in " +
+        nProcessedBoards +
+        (nProcessedBoards > 1 ? " boards." : " board."),
+      fixed: false,
+    });
+
+    switch (exportFormat) {
+      case "XLSX":
+        await createExcelExport(
+          jsonComputedCards,
+          iExcelItemsAsRows,
+          allColumns,
+          selectedColumns,
+          bExportCustomFields,
+          false,
+        );
+        break;
+
+      case "MD":
+        createMarkdownExport(
+          jsonComputedCards,
+          true,
+          bckHTMLCardInfo,
+          bchkHTMLInlineImages,
+          bExportCustomFields,
+        );
+        break;
+
+      case "HTML":
+        createHTMLExport(
+          jsonComputedCards,
+          bckHTMLCardInfo,
+          bchkHTMLInlineImages,
+          css,
+          templateURL,
+          bExportCustomFields,
+        );
+        break;
+
+      case "OPML":
+        createOPMLExport(jsonComputedCards, bExportCustomFields);
+        break;
+
+      case "CSV":
+        var data = await createExcelExport(
+          jsonComputedCards,
+          iExcelItemsAsRows,
+          allColumns,
+          selectedColumns,
+          bExportCustomFields,
+          true,
+        );
+        createCSVExport(data, bexportArchived);
+        break;
+
+      default:
+        console.log("Unknown exportFormat requested");
+        $.growl.error({
+          title: "TrelloExport",
+          message: "Unknown exportFormat requested",
+          fixed: true,
+        });
+        break;
+    }
+  } catch (error) {
+    console.error("Error in loadData:", error);
+    $.growl.error({
+      title: "TrelloExport",
+      message: "An error occurred while loading data: " + error.message,
+      fixed: true,
+    });
+  }
+  // End loadData
 }
 
 // createExcelExport: export to XLSX
-async function createExcelExport(jsonComputedCards, iExcelItemsAsRows, allColumns, columnHeadings, bExportCustomFields, isCsv) {
-    console.log('TrelloExport exporting to Excel ' + jsonComputedCards.length + ' cards... columnHeadings ' + columnHeadings.length  + ' allColumns ' + allColumns.length);
+async function createExcelExport(
+  jsonComputedCards,
+  iExcelItemsAsRows,
+  allColumns,
+  columnHeadings,
+  bExportCustomFields,
+  isCsv,
+) {
+  console.log(
+    "TrelloExport exporting to Excel " +
+      jsonComputedCards.length +
+      " cards... columnHeadings " +
+      columnHeadings.length +
+      " allColumns " +
+      allColumns.length,
+  );
 
-    // prepare Workbook
-    var wb = new Workbook();
-    wArchived = {};
-    wArchived.name = 'Archived lists and cards';
-    wArchived.data = [];
+  // prepare Workbook
+  var wb = new Workbook();
+  wArchived = {};
+  wArchived.name = "Archived lists and cards";
+  wArchived.data = [];
 
-    if(!isCsv) {
-        wArchived.data.push([]);
-        wArchived.data[0] = columnHeadings;    
-    }
+  if (!isCsv) {
+    wArchived.data.push([]);
+    wArchived.data[0] = columnHeadings;
+  }
 
-    // Setup the active list and cart worksheet
-    w = {};
-    // if(data.name.length>30)
-    //     w.name = data.name.substr(0,30);
-    // else
-    //     w.name = data.name;
-    w.data = [];
-    w.data.push([]);
-    w.data[0] = columnHeadings;
+  // Setup the active list and cart worksheet
+  w = {};
+  // if(data.name.length>30)
+  //     w.name = data.name.substr(0,30);
+  // else
+  //     w.name = data.name;
+  w.data = [];
+  w.data.push([]);
+  w.data[0] = columnHeadings;
 
-    // loop jsonComputedCards
-    for (let cardIndex = 0; cardIndex < jsonComputedCards.length; cardIndex++) {
-        const card = jsonComputedCards[cardIndex];
+  // loop jsonComputedCards
+  for (let cardIndex = 0; cardIndex < jsonComputedCards.length; cardIndex++) {
+    const card = jsonComputedCards[cardIndex];
 
-        var toStringArray = [];
-        var nTotalCheckListItems = 0,
-            nTotalCheckListItemsCompleted = 0;
+    var toStringArray = [];
+    var nTotalCheckListItems = 0,
+      nTotalCheckListItemsCompleted = 0;
 
-        card.jsonCheckLists.forEach(function(list) {
-            nTotalCheckListItems += list.items.length;
+    card.jsonCheckLists.forEach(function (list) {
+      nTotalCheckListItems += list.items.length;
 
-            list.items.forEach(function(it) {
-                if (it.completed) {
-                    nTotalCheckListItemsCompleted++;
-                }
-            });
-        });
+      list.items.forEach(function (it) {
+        if (it.completed) {
+          nTotalCheckListItemsCompleted++;
+        }
+      });
+    });
 
-        // iExcelItemsAsRows: 
-        // 0=default
-        // 1=checklist items as rows
-        // 2=labels as rows
-        // 3=members as rows
-        switch (Number(iExcelItemsAsRows)) {
-            case 0:
-                // standard checklist export
-                toStringArray = [];
-                // filter columns
-                for (var nCol = 0; nCol < allColumns.length; nCol++) {
-                    //  var posInArray = $.inArray(allColumns[nCol].value, columnHeadings);
-                    //  console.log('nCol ' + nCol + ', posInArray ' + posInArray + ' allColumns[nCol].value ' + allColumns[nCol].value);
-                    if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
+    // iExcelItemsAsRows:
+    // 0=default
+    // 1=checklist items as rows
+    // 2=labels as rows
+    // 3=members as rows
+    switch (Number(iExcelItemsAsRows)) {
+      case 0:
+        // standard checklist export
+        toStringArray = [];
+        // filter columns
+        for (var nCol = 0; nCol < allColumns.length; nCol++) {
+          //  var posInArray = $.inArray(allColumns[nCol].value, columnHeadings);
+          //  console.log('nCol ' + nCol + ', posInArray ' + posInArray + ' allColumns[nCol].value ' + allColumns[nCol].value);
+          if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
+            //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 1');
 
-                        //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 1');
-
-                        switch (nCol) {
-                            case 0:
-                                toStringArray.push(card.organizationName);
-                                break;
-                            case 1:
-                                toStringArray.push(card.boardName);
-                                break;
-                            case 2:
-                                toStringArray.push(card.listName);
-                                break;
-                            case 3:
-                                toStringArray.push(card.cardID);
-                                break;
-                            case 4:
-                                toStringArray.push(card.title);
-                                break;
-                            case 5:
-                                toStringArray.push(card.shortLink);
-                                break;
-                            case 6:
-                                toStringArray.push(card.cardDescription);
-                                break;
-                            case 7:
-                                toStringArray.push(nTotalCheckListItems);
-                                break;
-                            case 8:
-                                toStringArray.push(nTotalCheckListItemsCompleted);
-                                break;
-                            case 9:
-                                toStringArray.push(card.checkLists);
-                                break;
-                            case 10:
-                                toStringArray.push(card.numberOfComments);
-                                break;
-                            case 11:
-                                toStringArray.push(card.comments);
-                                break;
-                            case 12:
-                                toStringArray.push(card.attachments);
-                                break;
-                            case 13:
-                                toStringArray.push(card.votes);
-                                break;
-                            case 14:
-                                toStringArray.push(card.spent);
-                                break;
-                            case 15:
-                                toStringArray.push(card.estimate);
-                                break;
-                            case 16:
-                                toStringArray.push(card.points_estimate);
-                                break;
-                            case 17:
-                                toStringArray.push(card.points_consumed);
-                                break;
-                            case 18:
-                                toStringArray.push(card.datetimeCreated);
-                                break;
-                            case 19:
-                                toStringArray.push(card.memberCreator);
-                                break;
-                            case 20:
-                                toStringArray.push(card.LastActivity);
-                                break;
-                            case 21:
-                                toStringArray.push((card.due ? new Date(card.due).toLocaleDateString() + ' ' + new Date(card.due).toLocaleTimeString() : ''));
-                                break;
-                            case 22:
-                                toStringArray.push(card.datetimeDone);
-                                break;
-                            case 23:
-                                toStringArray.push(card.memberDone);
-                                break;
-                            case 24:
-                                toStringArray.push(card.completionTime);
-                                break;
-                            case 25:
-                                toStringArray.push(card.memberInitials);
-                                break;
-                            case 26:
-                                toStringArray.push(card.labels.toString());
-                                break;
-                            case 27:
-                                toStringArray.push(card.dueComplete);
-                                break;
-                            case 28:
-                                toStringArray.push((card.start ? new Date(card.start).toLocaleDateString() + ' ' + new Date(card.start).toLocaleTimeString() : ''));
-                                break;
-                            default:
-                                // custom fields
-                                if (bExportCustomFields) {
-                                    if (localStorage.TrelloExportSelectedColumns) {
-                                        if (localStorage.TrelloExportSelectedColumns.stringContains(allColumns[nCol].value)) {
-                                            toStringArray.push(card[allColumns[nCol].value]);
-                                        }
-                                    } else {
-                                        toStringArray.push(card[allColumns[nCol].value]);
-                                    }
-                                }
-                                break;
-                        }
+            switch (nCol) {
+              case 0:
+                toStringArray.push(card.organizationName);
+                break;
+              case 1:
+                toStringArray.push(card.boardName);
+                break;
+              case 2:
+                toStringArray.push(card.listName);
+                break;
+              case 3:
+                toStringArray.push(card.cardID);
+                break;
+              case 4:
+                toStringArray.push(card.title);
+                break;
+              case 5:
+                toStringArray.push(card.shortLink);
+                break;
+              case 6:
+                toStringArray.push(card.cardDescription);
+                break;
+              case 7:
+                toStringArray.push(nTotalCheckListItems);
+                break;
+              case 8:
+                toStringArray.push(nTotalCheckListItemsCompleted);
+                break;
+              case 9:
+                toStringArray.push(card.checkLists);
+                break;
+              case 10:
+                toStringArray.push(card.numberOfComments);
+                break;
+              case 11:
+                toStringArray.push(card.comments);
+                break;
+              case 12:
+                toStringArray.push(card.attachments);
+                break;
+              case 13:
+                toStringArray.push(card.votes);
+                break;
+              case 14:
+                toStringArray.push(card.spent);
+                break;
+              case 15:
+                toStringArray.push(card.estimate);
+                break;
+              case 16:
+                toStringArray.push(card.points_estimate);
+                break;
+              case 17:
+                toStringArray.push(card.points_consumed);
+                break;
+              case 18:
+                toStringArray.push(card.datetimeCreated);
+                break;
+              case 19:
+                toStringArray.push(card.memberCreator);
+                break;
+              case 20:
+                toStringArray.push(card.LastActivity);
+                break;
+              case 21:
+                toStringArray.push(
+                  card.due
+                    ? new Date(card.due).toLocaleDateString() +
+                        " " +
+                        new Date(card.due).toLocaleTimeString()
+                    : "",
+                );
+                break;
+              case 22:
+                toStringArray.push(card.datetimeDone);
+                break;
+              case 23:
+                toStringArray.push(card.memberDone);
+                break;
+              case 24:
+                toStringArray.push(card.completionTime);
+                break;
+              case 25:
+                toStringArray.push(card.memberInitials);
+                break;
+              case 26:
+                toStringArray.push(card.labels.toString());
+                break;
+              case 27:
+                toStringArray.push(card.dueComplete);
+                break;
+              case 28:
+                toStringArray.push(
+                  card.start
+                    ? new Date(card.start).toLocaleDateString() +
+                        " " +
+                        new Date(card.start).toLocaleTimeString()
+                    : "",
+                );
+                break;
+              default:
+                // custom fields
+                if (bExportCustomFields) {
+                  if (localStorage.TrelloExportSelectedColumns) {
+                    if (
+                      localStorage.TrelloExportSelectedColumns.stringContains(
+                        allColumns[nCol].value,
+                      )
+                    ) {
+                      toStringArray.push(card[allColumns[nCol].value]);
                     }
-                }
-
-                if (card.isArchived) {
-                    var rArch = wArchived.data.push([]) - 1;
-                    wArchived.data[rArch] = toStringArray;
-                } else {
-                    var r = w.data.push([]) - 1;
-                    w.data[r] = toStringArray;
+                  } else {
+                    toStringArray.push(card[allColumns[nCol].value]);
+                  }
                 }
                 break;
-
-            case 1:
-                // checklist items as rows
-                if (card.jsonCheckLists.length > 0) {
-
-                    card.jsonCheckLists.forEach(function(list) {
-
-                        if (!list.items || list.items.length === 0) {
-                            // checklist with no items
-                            list.items.push({
-                                name: null,
-                                completed: null,
-                                completedDate: null,
-                                completedBy: null
-                            });
-                        }
-
-                        list.items.forEach(function(it) {
-                            toStringArray = [];
-                            // filter columns
-                            for (var nCol = 0; nCol < allColumns.length; nCol++) {
-                                if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
-
-                                    //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 2');
-
-                                    switch (nCol) {
-                                        case 0:
-                                            toStringArray.push(card.organizationName);
-                                            break;
-                                        case 1:
-                                            toStringArray.push(card.boardName);
-                                            break;
-                                        case 2:
-                                            toStringArray.push(card.listName);
-                                            break;
-                                        case 3:
-                                            toStringArray.push(card.cardID);
-                                            break;
-                                        case 4:
-                                            toStringArray.push(card.title);
-                                            break;
-                                        case 5:
-                                            toStringArray.push(card.shortLink);
-                                            break;
-                                        case 6:
-                                            toStringArray.push(card.cardDescription);
-                                            break;
-                                        case 7:
-                                            toStringArray.push(nTotalCheckListItems);
-                                            break;
-                                        case 8:
-                                            toStringArray.push(nTotalCheckListItemsCompleted);
-                                            break;
-                                        case 9:
-                                            toStringArray.push(list.name);
-                                            break;
-                                        case 10:
-                                            toStringArray.push(it.name);
-                                            break;
-                                        case 11:
-                                            toStringArray.push(it.completed);
-                                            break;
-                                        case 12:
-                                            toStringArray.push(it.completedDate);
-                                            break;
-                                        case 13:
-                                            toStringArray.push(it.completedBy);
-                                            break;
-                                        case 14:
-                                            toStringArray.push(card.numberOfComments);
-                                            break;
-                                        case 15:
-                                            toStringArray.push(card.comments);
-                                            break;
-                                        case 16:
-                                            toStringArray.push(card.attachments);
-                                            break;
-                                        case 17:
-                                            toStringArray.push(card.votes);
-                                            break;
-                                        case 18:
-                                            toStringArray.push(card.spent);
-                                            break;
-                                        case 19:
-                                            toStringArray.push(card.estimate);
-                                            break;
-                                        case 20:
-                                            toStringArray.push(card.points_estimate);
-                                            break;
-                                        case 21:
-                                            toStringArray.push(card.points_consumed);
-                                            break;
-                                        case 22:
-                                            toStringArray.push(card.datetimeCreated);
-                                            break;
-                                        case 23:
-                                            toStringArray.push(card.memberCreator);
-                                            break;
-                                        case 24:
-                                            toStringArray.push(card.LastActivity);
-                                            break;
-                                        case 25:
-                                            toStringArray.push((card.due ? new Date(card.due).toLocaleDateString() + ' ' + new Date(card.due).toLocaleTimeString() : ''));
-                                            break;
-                                        case 26:
-                                            toStringArray.push(card.datetimeDone);
-                                            break;
-                                        case 27:
-                                            toStringArray.push(card.memberDone);
-                                            break;
-                                        case 28:
-                                            toStringArray.push(card.completionTime);
-                                            break;
-                                        case 29:
-                                            toStringArray.push(card.memberInitials);
-                                            break;
-                                        case 30:
-                                            toStringArray.push(card.labels.toString());
-                                            break;
-                                        case 31:
-                                            toStringArray.push(card.dueComplete);
-                                            break;
-                                        case 32:
-                                            toStringArray.push((card.start ? new Date(card.start).toLocaleDateString() + ' ' + new Date(card.start).toLocaleTimeString() : ''));
-                                            break;
-                                        case 33:
-                                            toStringArray.push(it.due);
-                                            break;
-                                        case 34:
-                                            toStringArray.push(it.idMember);
-                                            break;
-                                        case 35:
-                                            toStringArray.push(it.memberInitials);
-                                            break;
-                                        case 36:
-                                            toStringArray.push(it.state);
-                                            break;
-                                        default:
-                                            // custom fields
-                                            if (bExportCustomFields) {
-                                                if (localStorage.TrelloExportSelectedColumns) {
-                                                    if (localStorage.TrelloExportSelectedColumns.stringContains(allColumns[nCol].value)) {
-                                                        toStringArray.push(card[allColumns[nCol].value]);
-                                                    }
-                                                } else {
-                                                    toStringArray.push(card[allColumns[nCol].value]);
-                                                }
-                                            }
-                                            break;
-                                    }
-                                }
-                            }
-
-                            if (card.isArchived) {
-                                var rArch2 = wArchived.data.push([]) - 1;
-                                wArchived.data[rArch2] = toStringArray;
-                            } else {
-                                var r2 = w.data.push([]) - 1;
-                                w.data[r2] = toStringArray;
-                            }
-
-                        });
-                    });
-
-                } else {
-                    // no checklist items
-
-                    toStringArray = [];
-                    // filter columns
-                    for (nCol = 0; nCol < allColumns.length; nCol++) {
-                        if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
-
-                            //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 3');
-
-                            switch (nCol) {
-                                case 0:
-                                    toStringArray.push(card.organizationName);
-                                    break;
-                                case 1:
-                                    toStringArray.push(card.boardName);
-                                    break;
-                                case 2:
-                                    toStringArray.push(card.listName);
-                                    break;
-                                case 3:
-                                    toStringArray.push(card.cardID);
-                                    break;
-                                case 4:
-                                    toStringArray.push(card.title);
-                                    break;
-                                case 5:
-                                    toStringArray.push(card.shortLink);
-                                    break;
-                                case 6:
-                                    toStringArray.push(card.cardDescription);
-                                    break;
-                                case 7:
-                                    toStringArray.push(nTotalCheckListItems);
-                                    break;
-                                case 8:
-                                    toStringArray.push(nTotalCheckListItemsCompleted);
-                                    break;
-                                case 9:
-                                    toStringArray.push('');
-                                    break;
-                                case 10:
-                                    toStringArray.push('');
-                                    break;
-                                case 11:
-                                    toStringArray.push('');
-                                    break;
-                                case 12:
-                                    toStringArray.push('');
-                                    break;
-                                case 13:
-                                    toStringArray.push('');
-                                    break;
-                                case 14:
-                                    toStringArray.push(card.numberOfComments);
-                                    break;
-                                case 15:
-                                    toStringArray.push(card.comments);
-                                    break;
-                                case 16:
-                                    toStringArray.push(card.attachments);
-                                    break;
-                                case 17:
-                                    toStringArray.push(card.votes);
-                                    break;
-                                case 18:
-                                    toStringArray.push(card.spent);
-                                    break;
-                                case 19:
-                                    toStringArray.push(card.estimate);
-                                    break;
-                                case 20:
-                                    toStringArray.push(card.points_estimate);
-                                    break;
-                                case 21:
-                                    toStringArray.push(card.points_consumed);
-                                    break;
-                                case 22:
-                                    toStringArray.push(card.datetimeCreated);
-                                    break;
-                                case 23:
-                                    toStringArray.push(card.memberCreator);
-                                    break;
-                                case 24:
-                                    toStringArray.push(card.LastActivity);
-                                    break;
-                                case 25:
-                                    toStringArray.push((card.due ? new Date(card.due).toLocaleDateString() + ' ' + new Date(card.due).toLocaleTimeString() : ''));
-                                    break;
-                                case 26:
-                                    toStringArray.push(card.datetimeDone);
-                                    break;
-                                case 27:
-                                    toStringArray.push(card.memberDone);
-                                    break;
-                                case 28:
-                                    toStringArray.push(card.completionTime);
-                                    break;
-                                case 29:
-                                    toStringArray.push(card.memberInitials);
-                                    break;
-                                case 30:
-                                    toStringArray.push(card.labels.toString());
-                                    break;
-                                case 31:
-                                    toStringArray.push(card.dueComplete);
-                                    break;
-                                case 32:
-                                    toStringArray.push((card.start ? new Date(card.start).toLocaleDateString() + ' ' + new Date(card.start).toLocaleTimeString() : ''));
-                                    break;
-                                default:
-                                    // custom fields
-                                    if (bExportCustomFields) {
-                                        if (localStorage.TrelloExportSelectedColumns) {
-                                            if (localStorage.TrelloExportSelectedColumns.stringContains(allColumns[nCol].value)) {
-                                                toStringArray.push(card[allColumns[nCol].value]);
-                                            }
-                                        } else {
-                                            toStringArray.push(card[allColumns[nCol].value]);
-                                        }
-                                    }
-                                    break;
-                            }
-                        }
-                    }
-
-                    if (card.isArchived) {
-                        var rArch2 = wArchived.data.push([]) - 1;
-                        wArchived.data[rArch2] = toStringArray;
-                    } else {
-                        var r2 = w.data.push([]) - 1;
-                        w.data[r2] = toStringArray;
-                    }
-                }
-                break;
-
-            case 2:
-                // 2=labels as rows
-                if (card.labels.length > 0) {
-
-                    card.labels.forEach(function(lbl) {
-
-                        toStringArray = [];
-                        // filter columns
-                        for (var nCol = 0; nCol < allColumns.length; nCol++) {
-                            if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
-
-                                //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 4');
-
-                                switch (nCol) {
-                                    case 0:
-                                        toStringArray.push(card.organizationName);
-                                        break;
-                                    case 1:
-                                        toStringArray.push(card.boardName);
-                                        break;
-                                    case 2:
-                                        toStringArray.push(card.listName);
-                                        break;
-                                    case 3:
-                                        toStringArray.push(card.cardID);
-                                        break;
-                                    case 4:
-                                        toStringArray.push(card.title);
-                                        break;
-                                    case 5:
-                                        toStringArray.push(card.shortLink);
-                                        break;
-                                    case 6:
-                                        toStringArray.push(card.cardDescription);
-                                        break;
-                                    case 7:
-                                        toStringArray.push(nTotalCheckListItems);
-                                        break;
-                                    case 8:
-                                        toStringArray.push(nTotalCheckListItemsCompleted);
-                                        break;
-                                    case 9:
-                                        toStringArray.push(card.checkLists);
-                                        break;
-                                    case 10:
-                                        toStringArray.push(card.numberOfComments);
-                                        break;
-                                    case 11:
-                                        toStringArray.push(card.comments);
-                                        break;
-                                    case 12:
-                                        toStringArray.push(card.attachments);
-                                        break;
-                                    case 13:
-                                        toStringArray.push(card.votes);
-                                        break;
-                                    case 14:
-                                        toStringArray.push(card.spent);
-                                        break;
-                                    case 15:
-                                        toStringArray.push(card.estimate);
-                                        break;
-                                    case 16:
-                                        toStringArray.push(card.points_estimate);
-                                        break;
-                                    case 17:
-                                        toStringArray.push(card.points_consumed);
-                                        break;
-                                    case 18:
-                                        toStringArray.push(card.datetimeCreated);
-                                        break;
-                                    case 19:
-                                        toStringArray.push(card.memberCreator);
-                                        break;
-                                    case 20:
-                                        toStringArray.push(card.LastActivity);
-                                        break;
-                                    case 21:
-                                        toStringArray.push((card.due ? new Date(card.due).toLocaleDateString() + ' ' + new Date(card.due).toLocaleTimeString() : ''));
-                                        break;
-                                    case 22:
-                                        toStringArray.push(card.datetimeDone);
-                                        break;
-                                    case 23:
-                                        toStringArray.push(card.memberDone);
-                                        break;
-                                    case 24:
-                                        toStringArray.push(card.completionTime);
-                                        break;
-                                    case 25:
-                                        toStringArray.push(card.memberInitials);
-                                        break;
-                                    case 26:
-                                        toStringArray.push(lbl);
-                                        break;
-                                    case 27:
-                                        toStringArray.push(card.dueComplete);
-                                        break;
-                                    case 28:
-                                        toStringArray.push((card.start ? new Date(card.start).toLocaleDateString() + ' ' + new Date(card.start).toLocaleTimeString() : ''));
-                                        break;
-                                    default:
-                                        // custom fields
-                                        if (bExportCustomFields) {
-                                            if (localStorage.TrelloExportSelectedColumns) {
-                                                if (localStorage.TrelloExportSelectedColumns.stringContains(allColumns[nCol].value)) {
-                                                    toStringArray.push(card[allColumns[nCol].value]);
-                                                }
-                                            } else {
-                                                toStringArray.push(card[allColumns[nCol].value]);
-                                            }
-                                        }
-                                        break;
-                                }
-                            }
-                        }
-
-                        if (card.isArchived) {
-                            var rArch2 = wArchived.data.push([]) - 1;
-                            wArchived.data[rArch2] = toStringArray;
-                        } else {
-                            var r2 = w.data.push([]) - 1;
-                            w.data[r2] = toStringArray;
-                        }
-
-                    });
-
-                } else {
-                    // no labels
-
-                    toStringArray = [];
-                    // filter columns
-                    for (nCol = 0; nCol < allColumns.length; nCol++) {
-                        if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
-
-                            //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 5');
-                            switch (nCol) {
-                                case 0:
-                                    toStringArray.push(card.organizationName);
-                                    break;
-                                case 1:
-                                    toStringArray.push(card.boardName);
-                                    break;
-                                case 2:
-                                    toStringArray.push(card.listName);
-                                    break;
-                                case 3:
-                                    toStringArray.push(card.cardID);
-                                    break;
-                                case 4:
-                                    toStringArray.push(card.title);
-                                    break;
-                                case 5:
-                                    toStringArray.push(card.shortLink);
-                                    break;
-                                case 6:
-                                    toStringArray.push(card.cardDescription);
-                                    break;
-                                case 7:
-                                    toStringArray.push(nTotalCheckListItems);
-                                    break;
-                                case 8:
-                                    toStringArray.push(nTotalCheckListItemsCompleted);
-                                    break;
-                                case 9:
-                                    toStringArray.push('');
-                                    break;
-                                case 10:
-                                    toStringArray.push('');
-                                    break;
-                                case 11:
-                                    toStringArray.push('');
-                                    break;
-                                case 12:
-                                    toStringArray.push('');
-                                    break;
-                                case 13:
-                                    toStringArray.push('');
-                                    break;
-                                case 14:
-                                    toStringArray.push(card.numberOfComments);
-                                    break;
-                                case 15:
-                                    toStringArray.push(card.comments);
-                                    break;
-                                case 16:
-                                    toStringArray.push(card.attachments);
-                                    break;
-                                case 17:
-                                    toStringArray.push(card.votes);
-                                    break;
-                                case 18:
-                                    toStringArray.push(card.spent);
-                                    break;
-                                case 19:
-                                    toStringArray.push(card.estimate);
-                                    break;
-                                case 20:
-                                    toStringArray.push(card.points_estimate);
-                                    break;
-                                case 21:
-                                    toStringArray.push(card.points_consumed);
-                                    break;
-                                case 22:
-                                    toStringArray.push(card.datetimeCreated);
-                                    break;
-                                case 23:
-                                    toStringArray.push(card.memberCreator);
-                                    break;
-                                case 24:
-                                    toStringArray.push(card.LastActivity);
-                                    break;
-                                case 25:
-                                    toStringArray.push((card.due ? new Date(card.due).toLocaleDateString() + ' ' + new Date(card.due).toLocaleTimeString() : ''));
-                                    break;
-                                case 26:
-                                    toStringArray.push(card.datetimeDone);
-                                    break;
-                                case 27:
-                                    toStringArray.push(card.memberDone);
-                                    break;
-                                case 28:
-                                    toStringArray.push(card.completionTime);
-                                    break;
-                                case 29:
-                                    toStringArray.push(card.memberInitials);
-                                    break;
-                                case 30:
-                                    toStringArray.push(card.labels.toString());
-                                    break;
-                                case 31:
-                                    toStringArray.push(card.dueComplete);
-                                    break;
-                                case 32:
-                                    toStringArray.push((card.start ? new Date(card.start).toLocaleDateString() + ' ' + new Date(card.start).toLocaleTimeString() : ''));
-                                    break;
-                                default:
-                                    // custom fields
-                                    if (bExportCustomFields) {
-                                        if (localStorage.TrelloExportSelectedColumns) {
-                                            if (localStorage.TrelloExportSelectedColumns.stringContains(allColumns[nCol].value)) {
-                                                toStringArray.push(card[allColumns[nCol].value]);
-                                            }
-                                        } else {
-                                            toStringArray.push(card[allColumns[nCol].value]);
-                                        }
-                                    }
-                                    break;
-                            }
-                        }
-                    }
-
-                    if (card.isArchived) {
-                        var lblrArch2 = wArchived.data.push([]) - 1;
-                        wArchived.data[lblrArch2] = toStringArray;
-                    } else {
-                        var lblr2 = w.data.push([]) - 1;
-                        w.data[lblr2] = toStringArray;
-                    }
-                }
-                break;
-
-            case 3:
-                // 3=members as rows
-                if (card.memberInitials.length > 0) {
-
-                    card.memberInitials.split(",").forEach(function(mbm) {
-
-                        toStringArray = [];
-                        // filter columns
-                        for (var nCol = 0; nCol < allColumns.length; nCol++) {
-                            if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
-
-                                //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 6');
-                                switch (nCol) {
-                                    case 0:
-                                        toStringArray.push(card.organizationName);
-                                        break;
-                                    case 1:
-                                        toStringArray.push(card.boardName);
-                                        break;
-                                    case 2:
-                                        toStringArray.push(card.listName);
-                                        break;
-                                    case 3:
-                                        toStringArray.push(card.cardID);
-                                        break;
-                                    case 4:
-                                        toStringArray.push(card.title);
-                                        break;
-                                    case 5:
-                                        toStringArray.push(card.shortLink);
-                                        break;
-                                    case 6:
-                                        toStringArray.push(card.cardDescription);
-                                        break;
-                                    case 7:
-                                        toStringArray.push(nTotalCheckListItems);
-                                        break;
-                                    case 8:
-                                        toStringArray.push(nTotalCheckListItemsCompleted);
-                                        break;
-                                    case 9:
-                                        toStringArray.push(card.checkLists);
-                                        break;
-                                    case 10:
-                                        toStringArray.push(card.numberOfComments);
-                                        break;
-                                    case 11:
-                                        toStringArray.push(card.comments);
-                                        break;
-                                    case 12:
-                                        toStringArray.push(card.attachments);
-                                        break;
-                                    case 13:
-                                        toStringArray.push(card.votes);
-                                        break;
-                                    case 14:
-                                        toStringArray.push(card.spent);
-                                        break;
-                                    case 15:
-                                        toStringArray.push(card.estimate);
-                                        break;
-                                    case 16:
-                                        toStringArray.push(card.points_estimate);
-                                        break;
-                                    case 17:
-                                        toStringArray.push(card.points_consumed);
-                                        break;
-                                    case 18:
-                                        toStringArray.push(card.datetimeCreated);
-                                        break;
-                                    case 19:
-                                        toStringArray.push(card.memberCreator);
-                                        break;
-                                    case 20:
-                                        toStringArray.push(card.LastActivity);
-                                        break;
-                                    case 21:
-                                        toStringArray.push((card.due ? new Date(card.due).toLocaleDateString() + ' ' + new Date(card.due).toLocaleTimeString() : ''));
-                                        break;
-                                    case 22:
-                                        toStringArray.push(card.datetimeDone);
-                                        break;
-                                    case 23:
-                                        toStringArray.push(card.memberDone);
-                                        break;
-                                    case 24:
-                                        toStringArray.push(card.completionTime);
-                                        break;
-                                    case 25:
-                                        toStringArray.push(mbm);
-                                        break;
-                                    case 26:
-                                        toStringArray.push(card.labels.toString());
-                                        break;
-                                    case 27:
-                                        toStringArray.push(card.dueComplete);
-                                        break;
-                                    case 28:
-                                        toStringArray.push((card.start ? new Date(card.start).toLocaleDateString() + ' ' + new Date(card.start).toLocaleTimeString() : ''));
-                                        break;
-                                    default:
-                                        // custom fields
-                                        if (bExportCustomFields) {
-                                            if (localStorage.TrelloExportSelectedColumns) {
-                                                if (localStorage.TrelloExportSelectedColumns.stringContains(allColumns[nCol].value)) {
-                                                    toStringArray.push(card[allColumns[nCol].value]);
-                                                }
-                                            } else {
-                                                toStringArray.push(card[allColumns[nCol].value]);
-                                            }
-                                        }
-                                        break;
-                                }
-                            }
-                        }
-
-                        if (card.isArchived) {
-                            var rArch2 = wArchived.data.push([]) - 1;
-                            wArchived.data[rArch2] = toStringArray;
-                        } else {
-                            var r2 = w.data.push([]) - 1;
-                            w.data[r2] = toStringArray;
-                        }
-
-                    });
-
-                } else {
-                    // no members
-
-                    toStringArray = [];
-                    // filter columns
-                    for (nCol = 0; nCol < allColumns.length; nCol++) {
-                        if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
-
-                            //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 7');
-                            switch (nCol) {
-                                case 0:
-                                    toStringArray.push(card.organizationName);
-                                    break;
-                                case 1:
-                                    toStringArray.push(card.boardName);
-                                    break;
-                                case 2:
-                                    toStringArray.push(card.listName);
-                                    break;
-                                case 3:
-                                    toStringArray.push(card.cardID);
-                                    break;
-                                case 4:
-                                    toStringArray.push(card.title);
-                                    break;
-                                case 5:
-                                    toStringArray.push(card.shortLink);
-                                    break;
-                                case 6:
-                                    toStringArray.push(card.cardDescription);
-                                    break;
-                                case 7:
-                                    toStringArray.push(nTotalCheckListItems);
-                                    break;
-                                case 8:
-                                    toStringArray.push(nTotalCheckListItemsCompleted);
-                                    break;
-                                case 9:
-                                    toStringArray.push('');
-                                    break;
-                                case 10:
-                                    toStringArray.push('');
-                                    break;
-                                case 11:
-                                    toStringArray.push('');
-                                    break;
-                                case 12:
-                                    toStringArray.push('');
-                                    break;
-                                case 13:
-                                    toStringArray.push('');
-                                    break;
-                                case 14:
-                                    toStringArray.push(card.numberOfComments);
-                                    break;
-                                case 15:
-                                    toStringArray.push(card.comments);
-                                    break;
-                                case 16:
-                                    toStringArray.push(card.attachments);
-                                    break;
-                                case 17:
-                                    toStringArray.push(card.votes);
-                                    break;
-                                case 18:
-                                    toStringArray.push(card.spent);
-                                    break;
-                                case 19:
-                                    toStringArray.push(card.estimate);
-                                    break;
-                                case 20:
-                                    toStringArray.push(card.points_estimate);
-                                    break;
-                                case 21:
-                                    toStringArray.push(card.points_consumed);
-                                    break;
-                                case 22:
-                                    toStringArray.push(card.datetimeCreated);
-                                    break;
-                                case 23:
-                                    toStringArray.push(card.memberCreator);
-                                    break;
-                                case 24:
-                                    toStringArray.push(card.LastActivity);
-                                    break;
-                                case 25:
-                                    toStringArray.push((card.due ? new Date(card.due).toLocaleDateString() + ' ' + new Date(card.due).toLocaleTimeString() : ''));
-                                    break;
-                                case 26:
-                                    toStringArray.push(card.datetimeDone);
-                                    break;
-                                case 27:
-                                    toStringArray.push(card.memberDone);
-                                    break;
-                                case 28:
-                                    toStringArray.push(card.completionTime);
-                                    break;
-                                case 29:
-                                    toStringArray.push(card.memberInitials);
-                                    break;
-                                case 30:
-                                    toStringArray.push(card.labels.toString());
-                                    break;
-                                case 31:
-                                    toStringArray.push(card.dueComplete);
-                                    break;
-                                case 32:
-                                    toStringArray.push((card.start ? new Date(card.start).toLocaleDateString() + ' ' + new Date(card.start).toLocaleTimeString() : ''));
-                                    break;
-                                default:
-                                    // custom fields
-                                    if (bExportCustomFields) {
-                                        if (localStorage.TrelloExportSelectedColumns) {
-                                            if (localStorage.TrelloExportSelectedColumns.stringContains(allColumns[nCol].value)) {
-                                                toStringArray.push(card[allColumns[nCol].value]);
-                                            }
-                                        } else {
-                                            toStringArray.push(card[allColumns[nCol].value]);
-                                        }
-                                    }
-                                    break;
-                            }
-                        }
-                    }
-
-                    if (card.isArchived) {
-                        var lblrArch3 = wArchived.data.push([]) - 1;
-                        wArchived.data[lblrArch3] = toStringArray;
-                    } else {
-                        var lblr3 = w.data.push([]) - 1;
-                        w.data[lblr3] = toStringArray;
-                    }
-                }
-                break;
-
-            default:
-                // console.log('DEFAULT: ' + iExcelItemsAsRows);
-                break;
+            }
+          }
         }
 
+        if (card.isArchived) {
+          var rArch = wArchived.data.push([]) - 1;
+          wArchived.data[rArch] = toStringArray;
+        } else {
+          var r = w.data.push([]) - 1;
+          w.data[r] = toStringArray;
+        }
+        break;
+
+      case 1:
+        // checklist items as rows
+        if (card.jsonCheckLists.length > 0) {
+          card.jsonCheckLists.forEach(function (list) {
+            if (!list.items || list.items.length === 0) {
+              // checklist with no items
+              list.items.push({
+                name: null,
+                completed: null,
+                completedDate: null,
+                completedBy: null,
+              });
+            }
+
+            list.items.forEach(function (it) {
+              toStringArray = [];
+              // filter columns
+              for (var nCol = 0; nCol < allColumns.length; nCol++) {
+                if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
+                  //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 2');
+
+                  switch (nCol) {
+                    case 0:
+                      toStringArray.push(card.organizationName);
+                      break;
+                    case 1:
+                      toStringArray.push(card.boardName);
+                      break;
+                    case 2:
+                      toStringArray.push(card.listName);
+                      break;
+                    case 3:
+                      toStringArray.push(card.cardID);
+                      break;
+                    case 4:
+                      toStringArray.push(card.title);
+                      break;
+                    case 5:
+                      toStringArray.push(card.shortLink);
+                      break;
+                    case 6:
+                      toStringArray.push(card.cardDescription);
+                      break;
+                    case 7:
+                      toStringArray.push(nTotalCheckListItems);
+                      break;
+                    case 8:
+                      toStringArray.push(nTotalCheckListItemsCompleted);
+                      break;
+                    case 9:
+                      toStringArray.push(list.name);
+                      break;
+                    case 10:
+                      toStringArray.push(it.name);
+                      break;
+                    case 11:
+                      toStringArray.push(it.completed);
+                      break;
+                    case 12:
+                      toStringArray.push(it.completedDate);
+                      break;
+                    case 13:
+                      toStringArray.push(it.completedBy);
+                      break;
+                    case 14:
+                      toStringArray.push(card.numberOfComments);
+                      break;
+                    case 15:
+                      toStringArray.push(card.comments);
+                      break;
+                    case 16:
+                      toStringArray.push(card.attachments);
+                      break;
+                    case 17:
+                      toStringArray.push(card.votes);
+                      break;
+                    case 18:
+                      toStringArray.push(card.spent);
+                      break;
+                    case 19:
+                      toStringArray.push(card.estimate);
+                      break;
+                    case 20:
+                      toStringArray.push(card.points_estimate);
+                      break;
+                    case 21:
+                      toStringArray.push(card.points_consumed);
+                      break;
+                    case 22:
+                      toStringArray.push(card.datetimeCreated);
+                      break;
+                    case 23:
+                      toStringArray.push(card.memberCreator);
+                      break;
+                    case 24:
+                      toStringArray.push(card.LastActivity);
+                      break;
+                    case 25:
+                      toStringArray.push(
+                        card.due
+                          ? new Date(card.due).toLocaleDateString() +
+                              " " +
+                              new Date(card.due).toLocaleTimeString()
+                          : "",
+                      );
+                      break;
+                    case 26:
+                      toStringArray.push(card.datetimeDone);
+                      break;
+                    case 27:
+                      toStringArray.push(card.memberDone);
+                      break;
+                    case 28:
+                      toStringArray.push(card.completionTime);
+                      break;
+                    case 29:
+                      toStringArray.push(card.memberInitials);
+                      break;
+                    case 30:
+                      toStringArray.push(card.labels.toString());
+                      break;
+                    case 31:
+                      toStringArray.push(card.dueComplete);
+                      break;
+                    case 32:
+                      toStringArray.push(
+                        card.start
+                          ? new Date(card.start).toLocaleDateString() +
+                              " " +
+                              new Date(card.start).toLocaleTimeString()
+                          : "",
+                      );
+                      break;
+                    case 33:
+                      toStringArray.push(it.due);
+                      break;
+                    case 34:
+                      toStringArray.push(it.idMember);
+                      break;
+                    case 35:
+                      toStringArray.push(it.memberInitials);
+                      break;
+                    case 36:
+                      toStringArray.push(it.state);
+                      break;
+                    default:
+                      // custom fields
+                      if (bExportCustomFields) {
+                        if (localStorage.TrelloExportSelectedColumns) {
+                          if (
+                            localStorage.TrelloExportSelectedColumns.stringContains(
+                              allColumns[nCol].value,
+                            )
+                          ) {
+                            toStringArray.push(card[allColumns[nCol].value]);
+                          }
+                        } else {
+                          toStringArray.push(card[allColumns[nCol].value]);
+                        }
+                      }
+                      break;
+                  }
+                }
+              }
+
+              if (card.isArchived) {
+                var rArch2 = wArchived.data.push([]) - 1;
+                wArchived.data[rArch2] = toStringArray;
+              } else {
+                var r2 = w.data.push([]) - 1;
+                w.data[r2] = toStringArray;
+              }
+            });
+          });
+        } else {
+          // no checklist items
+
+          toStringArray = [];
+          // filter columns
+          for (nCol = 0; nCol < allColumns.length; nCol++) {
+            if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
+              //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 3');
+
+              switch (nCol) {
+                case 0:
+                  toStringArray.push(card.organizationName);
+                  break;
+                case 1:
+                  toStringArray.push(card.boardName);
+                  break;
+                case 2:
+                  toStringArray.push(card.listName);
+                  break;
+                case 3:
+                  toStringArray.push(card.cardID);
+                  break;
+                case 4:
+                  toStringArray.push(card.title);
+                  break;
+                case 5:
+                  toStringArray.push(card.shortLink);
+                  break;
+                case 6:
+                  toStringArray.push(card.cardDescription);
+                  break;
+                case 7:
+                  toStringArray.push(nTotalCheckListItems);
+                  break;
+                case 8:
+                  toStringArray.push(nTotalCheckListItemsCompleted);
+                  break;
+                case 9:
+                  toStringArray.push("");
+                  break;
+                case 10:
+                  toStringArray.push("");
+                  break;
+                case 11:
+                  toStringArray.push("");
+                  break;
+                case 12:
+                  toStringArray.push("");
+                  break;
+                case 13:
+                  toStringArray.push("");
+                  break;
+                case 14:
+                  toStringArray.push(card.numberOfComments);
+                  break;
+                case 15:
+                  toStringArray.push(card.comments);
+                  break;
+                case 16:
+                  toStringArray.push(card.attachments);
+                  break;
+                case 17:
+                  toStringArray.push(card.votes);
+                  break;
+                case 18:
+                  toStringArray.push(card.spent);
+                  break;
+                case 19:
+                  toStringArray.push(card.estimate);
+                  break;
+                case 20:
+                  toStringArray.push(card.points_estimate);
+                  break;
+                case 21:
+                  toStringArray.push(card.points_consumed);
+                  break;
+                case 22:
+                  toStringArray.push(card.datetimeCreated);
+                  break;
+                case 23:
+                  toStringArray.push(card.memberCreator);
+                  break;
+                case 24:
+                  toStringArray.push(card.LastActivity);
+                  break;
+                case 25:
+                  toStringArray.push(
+                    card.due
+                      ? new Date(card.due).toLocaleDateString() +
+                          " " +
+                          new Date(card.due).toLocaleTimeString()
+                      : "",
+                  );
+                  break;
+                case 26:
+                  toStringArray.push(card.datetimeDone);
+                  break;
+                case 27:
+                  toStringArray.push(card.memberDone);
+                  break;
+                case 28:
+                  toStringArray.push(card.completionTime);
+                  break;
+                case 29:
+                  toStringArray.push(card.memberInitials);
+                  break;
+                case 30:
+                  toStringArray.push(card.labels.toString());
+                  break;
+                case 31:
+                  toStringArray.push(card.dueComplete);
+                  break;
+                case 32:
+                  toStringArray.push(
+                    card.start
+                      ? new Date(card.start).toLocaleDateString() +
+                          " " +
+                          new Date(card.start).toLocaleTimeString()
+                      : "",
+                  );
+                  break;
+                default:
+                  // custom fields
+                  if (bExportCustomFields) {
+                    if (localStorage.TrelloExportSelectedColumns) {
+                      if (
+                        localStorage.TrelloExportSelectedColumns.stringContains(
+                          allColumns[nCol].value,
+                        )
+                      ) {
+                        toStringArray.push(card[allColumns[nCol].value]);
+                      }
+                    } else {
+                      toStringArray.push(card[allColumns[nCol].value]);
+                    }
+                  }
+                  break;
+              }
+            }
+          }
+
+          if (card.isArchived) {
+            var rArch2 = wArchived.data.push([]) - 1;
+            wArchived.data[rArch2] = toStringArray;
+          } else {
+            var r2 = w.data.push([]) - 1;
+            w.data[r2] = toStringArray;
+          }
+        }
+        break;
+
+      case 2:
+        // 2=labels as rows
+        if (card.labels.length > 0) {
+          card.labels.forEach(function (lbl) {
+            toStringArray = [];
+            // filter columns
+            for (var nCol = 0; nCol < allColumns.length; nCol++) {
+              if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
+                //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 4');
+
+                switch (nCol) {
+                  case 0:
+                    toStringArray.push(card.organizationName);
+                    break;
+                  case 1:
+                    toStringArray.push(card.boardName);
+                    break;
+                  case 2:
+                    toStringArray.push(card.listName);
+                    break;
+                  case 3:
+                    toStringArray.push(card.cardID);
+                    break;
+                  case 4:
+                    toStringArray.push(card.title);
+                    break;
+                  case 5:
+                    toStringArray.push(card.shortLink);
+                    break;
+                  case 6:
+                    toStringArray.push(card.cardDescription);
+                    break;
+                  case 7:
+                    toStringArray.push(nTotalCheckListItems);
+                    break;
+                  case 8:
+                    toStringArray.push(nTotalCheckListItemsCompleted);
+                    break;
+                  case 9:
+                    toStringArray.push(card.checkLists);
+                    break;
+                  case 10:
+                    toStringArray.push(card.numberOfComments);
+                    break;
+                  case 11:
+                    toStringArray.push(card.comments);
+                    break;
+                  case 12:
+                    toStringArray.push(card.attachments);
+                    break;
+                  case 13:
+                    toStringArray.push(card.votes);
+                    break;
+                  case 14:
+                    toStringArray.push(card.spent);
+                    break;
+                  case 15:
+                    toStringArray.push(card.estimate);
+                    break;
+                  case 16:
+                    toStringArray.push(card.points_estimate);
+                    break;
+                  case 17:
+                    toStringArray.push(card.points_consumed);
+                    break;
+                  case 18:
+                    toStringArray.push(card.datetimeCreated);
+                    break;
+                  case 19:
+                    toStringArray.push(card.memberCreator);
+                    break;
+                  case 20:
+                    toStringArray.push(card.LastActivity);
+                    break;
+                  case 21:
+                    toStringArray.push(
+                      card.due
+                        ? new Date(card.due).toLocaleDateString() +
+                            " " +
+                            new Date(card.due).toLocaleTimeString()
+                        : "",
+                    );
+                    break;
+                  case 22:
+                    toStringArray.push(card.datetimeDone);
+                    break;
+                  case 23:
+                    toStringArray.push(card.memberDone);
+                    break;
+                  case 24:
+                    toStringArray.push(card.completionTime);
+                    break;
+                  case 25:
+                    toStringArray.push(card.memberInitials);
+                    break;
+                  case 26:
+                    toStringArray.push(lbl);
+                    break;
+                  case 27:
+                    toStringArray.push(card.dueComplete);
+                    break;
+                  case 28:
+                    toStringArray.push(
+                      card.start
+                        ? new Date(card.start).toLocaleDateString() +
+                            " " +
+                            new Date(card.start).toLocaleTimeString()
+                        : "",
+                    );
+                    break;
+                  default:
+                    // custom fields
+                    if (bExportCustomFields) {
+                      if (localStorage.TrelloExportSelectedColumns) {
+                        if (
+                          localStorage.TrelloExportSelectedColumns.stringContains(
+                            allColumns[nCol].value,
+                          )
+                        ) {
+                          toStringArray.push(card[allColumns[nCol].value]);
+                        }
+                      } else {
+                        toStringArray.push(card[allColumns[nCol].value]);
+                      }
+                    }
+                    break;
+                }
+              }
+            }
+
+            if (card.isArchived) {
+              var rArch2 = wArchived.data.push([]) - 1;
+              wArchived.data[rArch2] = toStringArray;
+            } else {
+              var r2 = w.data.push([]) - 1;
+              w.data[r2] = toStringArray;
+            }
+          });
+        } else {
+          // no labels
+
+          toStringArray = [];
+          // filter columns
+          for (nCol = 0; nCol < allColumns.length; nCol++) {
+            if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
+              //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 5');
+              switch (nCol) {
+                case 0:
+                  toStringArray.push(card.organizationName);
+                  break;
+                case 1:
+                  toStringArray.push(card.boardName);
+                  break;
+                case 2:
+                  toStringArray.push(card.listName);
+                  break;
+                case 3:
+                  toStringArray.push(card.cardID);
+                  break;
+                case 4:
+                  toStringArray.push(card.title);
+                  break;
+                case 5:
+                  toStringArray.push(card.shortLink);
+                  break;
+                case 6:
+                  toStringArray.push(card.cardDescription);
+                  break;
+                case 7:
+                  toStringArray.push(nTotalCheckListItems);
+                  break;
+                case 8:
+                  toStringArray.push(nTotalCheckListItemsCompleted);
+                  break;
+                case 9:
+                  toStringArray.push("");
+                  break;
+                case 10:
+                  toStringArray.push("");
+                  break;
+                case 11:
+                  toStringArray.push("");
+                  break;
+                case 12:
+                  toStringArray.push("");
+                  break;
+                case 13:
+                  toStringArray.push("");
+                  break;
+                case 14:
+                  toStringArray.push(card.numberOfComments);
+                  break;
+                case 15:
+                  toStringArray.push(card.comments);
+                  break;
+                case 16:
+                  toStringArray.push(card.attachments);
+                  break;
+                case 17:
+                  toStringArray.push(card.votes);
+                  break;
+                case 18:
+                  toStringArray.push(card.spent);
+                  break;
+                case 19:
+                  toStringArray.push(card.estimate);
+                  break;
+                case 20:
+                  toStringArray.push(card.points_estimate);
+                  break;
+                case 21:
+                  toStringArray.push(card.points_consumed);
+                  break;
+                case 22:
+                  toStringArray.push(card.datetimeCreated);
+                  break;
+                case 23:
+                  toStringArray.push(card.memberCreator);
+                  break;
+                case 24:
+                  toStringArray.push(card.LastActivity);
+                  break;
+                case 25:
+                  toStringArray.push(
+                    card.due
+                      ? new Date(card.due).toLocaleDateString() +
+                          " " +
+                          new Date(card.due).toLocaleTimeString()
+                      : "",
+                  );
+                  break;
+                case 26:
+                  toStringArray.push(card.datetimeDone);
+                  break;
+                case 27:
+                  toStringArray.push(card.memberDone);
+                  break;
+                case 28:
+                  toStringArray.push(card.completionTime);
+                  break;
+                case 29:
+                  toStringArray.push(card.memberInitials);
+                  break;
+                case 30:
+                  toStringArray.push(card.labels.toString());
+                  break;
+                case 31:
+                  toStringArray.push(card.dueComplete);
+                  break;
+                case 32:
+                  toStringArray.push(
+                    card.start
+                      ? new Date(card.start).toLocaleDateString() +
+                          " " +
+                          new Date(card.start).toLocaleTimeString()
+                      : "",
+                  );
+                  break;
+                default:
+                  // custom fields
+                  if (bExportCustomFields) {
+                    if (localStorage.TrelloExportSelectedColumns) {
+                      if (
+                        localStorage.TrelloExportSelectedColumns.stringContains(
+                          allColumns[nCol].value,
+                        )
+                      ) {
+                        toStringArray.push(card[allColumns[nCol].value]);
+                      }
+                    } else {
+                      toStringArray.push(card[allColumns[nCol].value]);
+                    }
+                  }
+                  break;
+              }
+            }
+          }
+
+          if (card.isArchived) {
+            var lblrArch2 = wArchived.data.push([]) - 1;
+            wArchived.data[lblrArch2] = toStringArray;
+          } else {
+            var lblr2 = w.data.push([]) - 1;
+            w.data[lblr2] = toStringArray;
+          }
+        }
+        break;
+
+      case 3:
+        // 3=members as rows
+        if (card.memberInitials.length > 0) {
+          card.memberInitials.split(",").forEach(function (mbm) {
+            toStringArray = [];
+            // filter columns
+            for (var nCol = 0; nCol < allColumns.length; nCol++) {
+              if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
+                //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 6');
+                switch (nCol) {
+                  case 0:
+                    toStringArray.push(card.organizationName);
+                    break;
+                  case 1:
+                    toStringArray.push(card.boardName);
+                    break;
+                  case 2:
+                    toStringArray.push(card.listName);
+                    break;
+                  case 3:
+                    toStringArray.push(card.cardID);
+                    break;
+                  case 4:
+                    toStringArray.push(card.title);
+                    break;
+                  case 5:
+                    toStringArray.push(card.shortLink);
+                    break;
+                  case 6:
+                    toStringArray.push(card.cardDescription);
+                    break;
+                  case 7:
+                    toStringArray.push(nTotalCheckListItems);
+                    break;
+                  case 8:
+                    toStringArray.push(nTotalCheckListItemsCompleted);
+                    break;
+                  case 9:
+                    toStringArray.push(card.checkLists);
+                    break;
+                  case 10:
+                    toStringArray.push(card.numberOfComments);
+                    break;
+                  case 11:
+                    toStringArray.push(card.comments);
+                    break;
+                  case 12:
+                    toStringArray.push(card.attachments);
+                    break;
+                  case 13:
+                    toStringArray.push(card.votes);
+                    break;
+                  case 14:
+                    toStringArray.push(card.spent);
+                    break;
+                  case 15:
+                    toStringArray.push(card.estimate);
+                    break;
+                  case 16:
+                    toStringArray.push(card.points_estimate);
+                    break;
+                  case 17:
+                    toStringArray.push(card.points_consumed);
+                    break;
+                  case 18:
+                    toStringArray.push(card.datetimeCreated);
+                    break;
+                  case 19:
+                    toStringArray.push(card.memberCreator);
+                    break;
+                  case 20:
+                    toStringArray.push(card.LastActivity);
+                    break;
+                  case 21:
+                    toStringArray.push(
+                      card.due
+                        ? new Date(card.due).toLocaleDateString() +
+                            " " +
+                            new Date(card.due).toLocaleTimeString()
+                        : "",
+                    );
+                    break;
+                  case 22:
+                    toStringArray.push(card.datetimeDone);
+                    break;
+                  case 23:
+                    toStringArray.push(card.memberDone);
+                    break;
+                  case 24:
+                    toStringArray.push(card.completionTime);
+                    break;
+                  case 25:
+                    toStringArray.push(mbm);
+                    break;
+                  case 26:
+                    toStringArray.push(card.labels.toString());
+                    break;
+                  case 27:
+                    toStringArray.push(card.dueComplete);
+                    break;
+                  case 28:
+                    toStringArray.push(
+                      card.start
+                        ? new Date(card.start).toLocaleDateString() +
+                            " " +
+                            new Date(card.start).toLocaleTimeString()
+                        : "",
+                    );
+                    break;
+                  default:
+                    // custom fields
+                    if (bExportCustomFields) {
+                      if (localStorage.TrelloExportSelectedColumns) {
+                        if (
+                          localStorage.TrelloExportSelectedColumns.stringContains(
+                            allColumns[nCol].value,
+                          )
+                        ) {
+                          toStringArray.push(card[allColumns[nCol].value]);
+                        }
+                      } else {
+                        toStringArray.push(card[allColumns[nCol].value]);
+                      }
+                    }
+                    break;
+                }
+              }
+            }
+
+            if (card.isArchived) {
+              var rArch2 = wArchived.data.push([]) - 1;
+              wArchived.data[rArch2] = toStringArray;
+            } else {
+              var r2 = w.data.push([]) - 1;
+              w.data[r2] = toStringArray;
+            }
+          });
+        } else {
+          // no members
+
+          toStringArray = [];
+          // filter columns
+          for (nCol = 0; nCol < allColumns.length; nCol++) {
+            if ($.inArray(allColumns[nCol].value, columnHeadings) > -1) {
+              //console.log('nCol ' + nCol + ' allColumns[nCol].value ' + allColumns[nCol].value + ' 7');
+              switch (nCol) {
+                case 0:
+                  toStringArray.push(card.organizationName);
+                  break;
+                case 1:
+                  toStringArray.push(card.boardName);
+                  break;
+                case 2:
+                  toStringArray.push(card.listName);
+                  break;
+                case 3:
+                  toStringArray.push(card.cardID);
+                  break;
+                case 4:
+                  toStringArray.push(card.title);
+                  break;
+                case 5:
+                  toStringArray.push(card.shortLink);
+                  break;
+                case 6:
+                  toStringArray.push(card.cardDescription);
+                  break;
+                case 7:
+                  toStringArray.push(nTotalCheckListItems);
+                  break;
+                case 8:
+                  toStringArray.push(nTotalCheckListItemsCompleted);
+                  break;
+                case 9:
+                  toStringArray.push("");
+                  break;
+                case 10:
+                  toStringArray.push("");
+                  break;
+                case 11:
+                  toStringArray.push("");
+                  break;
+                case 12:
+                  toStringArray.push("");
+                  break;
+                case 13:
+                  toStringArray.push("");
+                  break;
+                case 14:
+                  toStringArray.push(card.numberOfComments);
+                  break;
+                case 15:
+                  toStringArray.push(card.comments);
+                  break;
+                case 16:
+                  toStringArray.push(card.attachments);
+                  break;
+                case 17:
+                  toStringArray.push(card.votes);
+                  break;
+                case 18:
+                  toStringArray.push(card.spent);
+                  break;
+                case 19:
+                  toStringArray.push(card.estimate);
+                  break;
+                case 20:
+                  toStringArray.push(card.points_estimate);
+                  break;
+                case 21:
+                  toStringArray.push(card.points_consumed);
+                  break;
+                case 22:
+                  toStringArray.push(card.datetimeCreated);
+                  break;
+                case 23:
+                  toStringArray.push(card.memberCreator);
+                  break;
+                case 24:
+                  toStringArray.push(card.LastActivity);
+                  break;
+                case 25:
+                  toStringArray.push(
+                    card.due
+                      ? new Date(card.due).toLocaleDateString() +
+                          " " +
+                          new Date(card.due).toLocaleTimeString()
+                      : "",
+                  );
+                  break;
+                case 26:
+                  toStringArray.push(card.datetimeDone);
+                  break;
+                case 27:
+                  toStringArray.push(card.memberDone);
+                  break;
+                case 28:
+                  toStringArray.push(card.completionTime);
+                  break;
+                case 29:
+                  toStringArray.push(card.memberInitials);
+                  break;
+                case 30:
+                  toStringArray.push(card.labels.toString());
+                  break;
+                case 31:
+                  toStringArray.push(card.dueComplete);
+                  break;
+                case 32:
+                  toStringArray.push(
+                    card.start
+                      ? new Date(card.start).toLocaleDateString() +
+                          " " +
+                          new Date(card.start).toLocaleTimeString()
+                      : "",
+                  );
+                  break;
+                default:
+                  // custom fields
+                  if (bExportCustomFields) {
+                    if (localStorage.TrelloExportSelectedColumns) {
+                      if (
+                        localStorage.TrelloExportSelectedColumns.stringContains(
+                          allColumns[nCol].value,
+                        )
+                      ) {
+                        toStringArray.push(card[allColumns[nCol].value]);
+                      }
+                    } else {
+                      toStringArray.push(card[allColumns[nCol].value]);
+                    }
+                  }
+                  break;
+              }
+            }
+          }
+
+          if (card.isArchived) {
+            var lblrArch3 = wArchived.data.push([]) - 1;
+            wArchived.data[lblrArch3] = toStringArray;
+          } else {
+            var lblr3 = w.data.push([]) - 1;
+            w.data[lblr3] = toStringArray;
+          }
+        }
+        break;
+
+      default:
+        // console.log('DEFAULT: ' + iExcelItemsAsRows);
+        break;
     }
+  }
 
-    //console.log('w.data: ' + w.data.length + ', wArchived.data: ' + wArchived.data.length);
+  //console.log('w.data: ' + w.data.length + ', wArchived.data: ' + wArchived.data.length);
 
-    if (isCsv) {
-        var data = { data: w.data, archived: wArchived.data };
-        return data;
-    }
+  if (isCsv) {
+    var data = { data: w.data, archived: wArchived.data };
+    return data;
+  }
 
-    var board_title = "TrelloExport";
-    var ws = sheet_from_array_of_arrays(w.data);
+  var board_title = "TrelloExport";
+  var ws = sheet_from_array_of_arrays(w.data);
 
-    // add worksheet to workbook
-    wb.SheetNames.push(board_title);
-    wb.Sheets[board_title] = ws;
-    console.log("Added sheet " + board_title);
+  // add worksheet to workbook
+  wb.SheetNames.push(board_title);
+  wb.Sheets[board_title] = ws;
+  console.log("Added sheet " + board_title);
 
-    //add the Archived data
-    var wsArchived = sheet_from_array_of_arrays(wArchived.data);
-    if (wsArchived !== undefined) {
-        wb.SheetNames.push("Archived");
-        console.log("Added sheet Archived");
-        wb.Sheets.Archived = wsArchived;
-    }
+  //add the Archived data
+  var wsArchived = sheet_from_array_of_arrays(wArchived.data);
+  if (wsArchived !== undefined) {
+    wb.SheetNames.push("Archived");
+    console.log("Added sheet Archived");
+    wb.Sheets.Archived = wsArchived;
+  }
 
-    var now = new Date();
-    var fileName = "TrelloExport_" + now.getFullYear() + dd(now.getMonth() + 1) + dd(now.getUTCDate()) + dd(now.getHours()) + dd(now.getMinutes()) + dd(now.getSeconds()) + ".xlsx";
-    var wbout = XLSX.write(wb, {
-        bookType: 'xlsx',
-        bookSST: true,
-        type: 'binary'
-    });
-    var blob = new Blob([s2ab(wbout)], {
-        type: "application/octet-stream"
-    });
-    console.log('saving BLOB ' + blob);
-    saveAs(blob, fileName);
+  var now = new Date();
+  var fileName =
+    "TrelloExport_" +
+    now.getFullYear() +
+    dd(now.getMonth() + 1) +
+    dd(now.getUTCDate()) +
+    dd(now.getHours()) +
+    dd(now.getMinutes()) +
+    dd(now.getSeconds()) +
+    ".xlsx";
+  var wbout = XLSX.write(wb, {
+    bookType: "xlsx",
+    bookSST: true,
+    type: "binary",
+  });
+  var blob = new Blob([s2ab(wbout)], {
+    type: "application/octet-stream",
+  });
+  console.log("saving BLOB " + blob);
+  saveAs(blob, fileName);
 
-    console.log('Done exporting ' + fileName);
+  console.log("Done exporting " + fileName);
 
-    $.growl.notice({
-        title: "TrelloExport",
-        message: 'Done. Downloading xlsx file ' + fileName,
-        fixed: false
-    });
+  $.growl.notice({
+    title: "TrelloExport",
+    message: "Done. Downloading xlsx file " + fileName,
+    fixed: false,
+  });
 }
 
-function createMarkdownExport(jsonComputedCards, bPrint, bckHTMLCardInfo, bchkHTMLInlineImages, bExportCustomFields) {
-    console.log('TrelloExport exporting to Markdown ' + jsonComputedCards.length + ' cards...');
+function createMarkdownExport(
+  jsonComputedCards,
+  bPrint,
+  bckHTMLCardInfo,
+  bchkHTMLInlineImages,
+  bExportCustomFields,
+) {
+  console.log(
+    "TrelloExport exporting to Markdown " +
+      jsonComputedCards.length +
+      " cards...",
+  );
 
-    // console.log('jsonComputedCards: ' + JSON.stringify(jsonComputedCards));
-    var mdOut = '',
-        prevBoard = null,
-        prevList = null;
+  // console.log('jsonComputedCards: ' + JSON.stringify(jsonComputedCards));
+  var mdOut = "",
+    prevBoard = null,
+    prevList = null;
 
-    // loop jsonComputedCards
-    jsonComputedCards.forEach(function(card) {
-
-        if (prevBoard !== card.boardName) {
-            // print board title
-            mdOut += '# ' + card.boardName.trim() + '\n\n';
-            prevBoard = card.boardName;
-        }
-
-        if (prevList !== card.listName) {
-            // print board title
-            mdOut += '## ' + card.listName.trim() + '\n\n';
-            prevList = card.listName;
-        }
-
-        var sTitle = '';
-        if (!bPrint) {
-            // HTML export: add link to card
-            sTitle = '### [ <a target="_blank" href="' + card.shortLink + '">' + card.cardID + '</a> ] ' + card.title.trim() + '\n\n';
-        } else {
-            sTitle = '### [' + card.cardID + '] ' + card.title.trim() + '\n\n';
-        }
-        if (bckHTMLCardInfo) {
-            sTitle += '**Created:** ' + card.datetimeCreated + '\n\n' +
-                '**Created by:** ' + card.memberCreator + '\n\n';
-        }
-
-        mdOut += sTitle +
-            (card.due !== '' ? '**Due:** ' + new Date(card.due).toLocaleDateString() + ' ' + new Date(card.due).toLocaleTimeString() : '') + '\n\n' +
-            (card.datetimeDone !== '' ? '**Completed:** ' + card.datetimeDone + '\n\n' : '') +
-            (card.memberDone !== '' ? '**Completed by:** ' + card.memberDone + '\n\n' : '') +
-            (card.completionTimeText !== '' ? '**Elapse:** ' + card.completionTimeText + '\n\n' : '') +
-            (card.cardDescription !== '' ? '**Description:**\n\n' + card.cardDescription + '\n\n' : '');
-
-        // checklists
-        var i;
-        if (card.jsonCheckLists.length > 0) {
-            var prevCL = null;
-            for (i = 0; i < card.jsonCheckLists.length; i++) {
-
-                if (prevCL !== card.jsonCheckLists[i].name) {
-                    mdOut += '#### ' + card.jsonCheckLists[i].name + '\n\n';
-                    prevCL = card.jsonCheckLists[i].name;
-                }
-
-                for (var ii = 0; ii < card.jsonCheckLists[i].items.length; ii++) {
-                    if (card.jsonCheckLists[i].items[ii].completed === true) {
-                        mdOut += '[x] ' + card.jsonCheckLists[i].items[ii].name + ' ' + card.jsonCheckLists[i].items[ii].completedDate + ' ' + card.jsonCheckLists[i].items[ii].completedBy + '\n\n';
-                    } else {
-                        mdOut += '[ ] ' + card.jsonCheckLists[i].items[ii].name + '\n\n';
-                    }
-                }
-            }
-        }
-
-        // comments
-        if (card.jsonComments.length > 0) {
-            mdOut += '#### Comments\n';
-            for (i = 0; i < card.jsonComments.length; i++) {
-                var d = card.jsonComments[i].date;
-                if (d)
-                    mdOut += '**' + d + ' ' + card.jsonComments[i].memberCreator.fullName + '**\n\n' + card.jsonComments[i].text + '\n\n';
-                else
-                    mdOut += '**' + card.jsonComments[i].memberCreator.fullName + '**\n\n' + card.jsonComments[i].text + '\n\n';
-            }
-        }
-
-        // attachments
-        if (card.jsonAttachments.length > 0) {
-            mdOut += '#### Attachments\n';
-            for (i = 0; i < card.jsonAttachments.length; i++) {
-
-                // console.log('ATTACHMENT = ' + JSON.stringify(card.jsonAttachments[i]) );
-                if (bchkHTMLInlineImages && isImage(card.jsonAttachments[i].name)) {
-
-                    var sImg = '![' + card.jsonAttachments[i].name + '](' + card.jsonAttachments[i].url + ')';
-
-                    mdOut += '**' + card.jsonAttachments[i].name + '** (' + Number(card.jsonAttachments[i].bytes / 1024).toFixed(2) + ' kb) [download](' + card.jsonAttachments[i].url + ')\n\n' + sImg + '\n\n';
-
-                } else {
-
-                    mdOut += '**' + card.jsonAttachments[i].name + '** (' + Number(card.jsonAttachments[i].bytes / 1024).toFixed(2) + ' kb) [download](' + card.jsonAttachments[i].url + ')\n\n';
-
-                }
-
-            }
-        }
-
-    });
-
-    if (!bPrint) {
-        return mdOut;
+  // loop jsonComputedCards
+  jsonComputedCards.forEach(function (card) {
+    if (prevBoard !== card.boardName) {
+      // print board title
+      mdOut += "# " + card.boardName.trim() + "\n\n";
+      prevBoard = card.boardName;
     }
 
-    var now = new Date();
-    var fileName = "TrelloExport_" + now.getFullYear() + dd(now.getMonth() + 1) + dd(now.getUTCDate()) + dd(now.getHours()) + dd(now.getMinutes()) + dd(now.getSeconds()) + ".md";
+    if (prevList !== card.listName) {
+      // print board title
+      mdOut += "## " + card.listName.trim() + "\n\n";
+      prevList = card.listName;
+    }
 
-    saveAs(new Blob([mdOut], {
-        type: "text/markdown;charset=utf-8"
-    }), fileName);
+    var sTitle = "";
+    if (!bPrint) {
+      // HTML export: add link to card
+      sTitle =
+        '### [ <a target="_blank" href="' +
+        card.shortLink +
+        '">' +
+        card.cardID +
+        "</a> ] " +
+        card.title.trim() +
+        "\n\n";
+    } else {
+      sTitle = "### [" + card.cardID + "] " + card.title.trim() + "\n\n";
+    }
+    if (bckHTMLCardInfo) {
+      sTitle +=
+        "**Created:** " +
+        card.datetimeCreated +
+        "\n\n" +
+        "**Created by:** " +
+        card.memberCreator +
+        "\n\n";
+    }
 
-    console.log('Done exporting ' + fileName);
+    mdOut +=
+      sTitle +
+      (card.due !== ""
+        ? "**Due:** " +
+          new Date(card.due).toLocaleDateString() +
+          " " +
+          new Date(card.due).toLocaleTimeString()
+        : "") +
+      "\n\n" +
+      (card.datetimeDone !== ""
+        ? "**Completed:** " + card.datetimeDone + "\n\n"
+        : "") +
+      (card.memberDone !== ""
+        ? "**Completed by:** " + card.memberDone + "\n\n"
+        : "") +
+      (card.completionTimeText !== ""
+        ? "**Elapse:** " + card.completionTimeText + "\n\n"
+        : "") +
+      (card.cardDescription !== ""
+        ? "**Description:**\n\n" + card.cardDescription + "\n\n"
+        : "");
 
-    $.growl.notice({
-        title: "TrelloExport",
-        message: 'Done. Downloading markdown file ' + fileName,
-        fixed: false
-    });
+    // checklists
+    var i;
+    if (card.jsonCheckLists.length > 0) {
+      var prevCL = null;
+      for (i = 0; i < card.jsonCheckLists.length; i++) {
+        if (prevCL !== card.jsonCheckLists[i].name) {
+          mdOut += "#### " + card.jsonCheckLists[i].name + "\n\n";
+          prevCL = card.jsonCheckLists[i].name;
+        }
+
+        for (var ii = 0; ii < card.jsonCheckLists[i].items.length; ii++) {
+          if (card.jsonCheckLists[i].items[ii].completed === true) {
+            mdOut +=
+              "[x] " +
+              card.jsonCheckLists[i].items[ii].name +
+              " " +
+              card.jsonCheckLists[i].items[ii].completedDate +
+              " " +
+              card.jsonCheckLists[i].items[ii].completedBy +
+              "\n\n";
+          } else {
+            mdOut += "[ ] " + card.jsonCheckLists[i].items[ii].name + "\n\n";
+          }
+        }
+      }
+    }
+
+    // comments
+    if (card.jsonComments.length > 0) {
+      mdOut += "#### Comments\n";
+      for (i = 0; i < card.jsonComments.length; i++) {
+        var d = card.jsonComments[i].date;
+        if (d)
+          mdOut +=
+            "**" +
+            d +
+            " " +
+            card.jsonComments[i].memberCreator.fullName +
+            "**\n\n" +
+            card.jsonComments[i].text +
+            "\n\n";
+        else
+          mdOut +=
+            "**" +
+            card.jsonComments[i].memberCreator.fullName +
+            "**\n\n" +
+            card.jsonComments[i].text +
+            "\n\n";
+      }
+    }
+
+    // attachments
+    if (card.jsonAttachments.length > 0) {
+      mdOut += "#### Attachments\n";
+      for (i = 0; i < card.jsonAttachments.length; i++) {
+        // console.log('ATTACHMENT = ' + JSON.stringify(card.jsonAttachments[i]) );
+        if (bchkHTMLInlineImages && isImage(card.jsonAttachments[i].name)) {
+          var sImg =
+            "![" +
+            card.jsonAttachments[i].name +
+            "](" +
+            card.jsonAttachments[i].url +
+            ")";
+
+          mdOut +=
+            "**" +
+            card.jsonAttachments[i].name +
+            "** (" +
+            Number(card.jsonAttachments[i].bytes / 1024).toFixed(2) +
+            " kb) [download](" +
+            card.jsonAttachments[i].url +
+            ")\n\n" +
+            sImg +
+            "\n\n";
+        } else {
+          mdOut +=
+            "**" +
+            card.jsonAttachments[i].name +
+            "** (" +
+            Number(card.jsonAttachments[i].bytes / 1024).toFixed(2) +
+            " kb) [download](" +
+            card.jsonAttachments[i].url +
+            ")\n\n";
+        }
+      }
+    }
+  });
+
+  if (!bPrint) {
+    return mdOut;
+  }
+
+  var now = new Date();
+  var fileName =
+    "TrelloExport_" +
+    now.getFullYear() +
+    dd(now.getMonth() + 1) +
+    dd(now.getUTCDate()) +
+    dd(now.getHours()) +
+    dd(now.getMinutes()) +
+    dd(now.getSeconds()) +
+    ".md";
+
+  saveAs(
+    new Blob([mdOut], {
+      type: "text/markdown;charset=utf-8",
+    }),
+    fileName,
+  );
+
+  console.log("Done exporting " + fileName);
+
+  $.growl.notice({
+    title: "TrelloExport",
+    message: "Done. Downloading markdown file " + fileName,
+    fixed: false,
+  });
 }
 
 function createCSVExport(jsonComputedCards, bexportArchived) {
-    console.log('TrelloExport exporting to CSV ' + jsonComputedCards.data.length + ' cards...');
-    console.log('TrelloExport exporting to CSV ' + jsonComputedCards.archived.length + ' archived cards...');
+  console.log(
+    "TrelloExport exporting to CSV " +
+      jsonComputedCards.data.length +
+      " cards...",
+  );
+  console.log(
+    "TrelloExport exporting to CSV " +
+      jsonComputedCards.archived.length +
+      " archived cards...",
+  );
 
-    var csvText = '';
-    jsonComputedCards.data.forEach(function(card) {
-        var i = 0;
-        Object.keys(card).forEach(function(c) {
-            var t = (typeof card[i] !== 'undefined' && card[i] !== null ? card[i].toString().replaceAll('\r', '') : '');
-            t = t.replaceAll('\n', '');
-            t = t.replaceAll('"', '\'');
-            if (i === Object.keys(card).length) {
-                csvText += '"' + t + '"';
-            } else {
-                csvText += '"' + t + '",';
-            }
-            i++;
-        });
-        csvText += "\r\n";
+  var csvText = "";
+  jsonComputedCards.data.forEach(function (card) {
+    var i = 0;
+    Object.keys(card).forEach(function (c) {
+      var t =
+        typeof card[i] !== "undefined" && card[i] !== null
+          ? card[i].toString().replaceAll("\r", "")
+          : "";
+      t = t.replaceAll("\n", "");
+      t = t.replaceAll('"', "'");
+      if (i === Object.keys(card).length) {
+        csvText += '"' + t + '"';
+      } else {
+        csvText += '"' + t + '",';
+      }
+      i++;
     });
+    csvText += "\r\n";
+  });
 
-    if (bexportArchived) {
-        jsonComputedCards.archived.forEach(function(card) {
-            var i = 0;
-            Object.keys(card).forEach(function(c) {
-                var t = (typeof card[i] !== 'undefined' && card[i] !== null ? card[i].toString().replaceAll('\r', '') : '');
-                t = t.replaceAll('\n', '');
-                t = t.replaceAll('"', '\'');
-                if (i === Object.keys(card).length) {
-                    csvText += '"' + t + '"';
-                } else {
-                    csvText += '"' + t + '",';
-                }
-                i++;
-            });
-            csvText += "\r\n";
-        });
-    }
-
-    var now = new Date();
-    var fileName = "TrelloExport_" + now.getFullYear() + dd(now.getMonth() + 1) + dd(now.getUTCDate()) + dd(now.getHours()) + dd(now.getMinutes()) + dd(now.getSeconds()) + ".csv";
-
-    saveAs(new Blob([csvText], {
-        type: "text/csv;charset=utf-8"
-    }), fileName);
-
-    console.log('Done exporting ' + fileName);
-
-    $.growl.notice({
-        title: "TrelloExport",
-        message: 'Done. Downloading markdown file ' + fileName,
-        fixed: false
+  if (bexportArchived) {
+    jsonComputedCards.archived.forEach(function (card) {
+      var i = 0;
+      Object.keys(card).forEach(function (c) {
+        var t =
+          typeof card[i] !== "undefined" && card[i] !== null
+            ? card[i].toString().replaceAll("\r", "")
+            : "";
+        t = t.replaceAll("\n", "");
+        t = t.replaceAll('"', "'");
+        if (i === Object.keys(card).length) {
+          csvText += '"' + t + '"';
+        } else {
+          csvText += '"' + t + '",';
+        }
+        i++;
+      });
+      csvText += "\r\n";
     });
+  }
 
+  var now = new Date();
+  var fileName =
+    "TrelloExport_" +
+    now.getFullYear() +
+    dd(now.getMonth() + 1) +
+    dd(now.getUTCDate()) +
+    dd(now.getHours()) +
+    dd(now.getMinutes()) +
+    dd(now.getSeconds()) +
+    ".csv";
+
+  saveAs(
+    new Blob([csvText], {
+      type: "text/csv;charset=utf-8",
+    }),
+    fileName,
+  );
+
+  console.log("Done exporting " + fileName);
+
+  $.growl.notice({
+    title: "TrelloExport",
+    message: "Done. Downloading markdown file " + fileName,
+    fixed: false,
+  });
 }
 
 function isImage(name) {
-    name = name.toLowerCase();
-    return (name.endsWith("jpg") || name.endsWith("jpeg") || name.endsWith("png"));
+  name = name.toLowerCase();
+  return name.endsWith("jpg") || name.endsWith("jpeg") || name.endsWith("png");
 }
 
 function loadTemplate(sUrl) {
-    return new Promise(function (resolve, reject) {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", sUrl, true);
-        xhr.onload = function () {
-            if (xhr.status == 200) {
-                // console.log('loadTemplate loaded: ' + xhr.response);
-                resolve(xhr.response);
-            }
-            else {
-                reject({
-                    status: xhr.status,
-                    statusText: xhr.statusText
-                });
-            }
-        };
-        xhr.onerror = function () {
-            if (xhr.status === 0) {
-                console.error(xhr.response)
-            }
-            reject({
-                status: xhr.status,
-                statusText: xhr.statusText
-            });
-        };
-        xhr.crossDomain = true;
-        xhr.withCredentials = false;
-        xhr.send();
-    });
+  return new Promise(function (resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", sUrl, true);
+    xhr.onload = function () {
+      if (xhr.status == 200) {
+        // console.log('loadTemplate loaded: ' + xhr.response);
+        resolve(xhr.response);
+      } else {
+        reject({
+          status: xhr.status,
+          statusText: xhr.statusText,
+        });
+      }
+    };
+    xhr.onerror = function () {
+      if (xhr.status === 0) {
+        console.error(xhr.response);
+      }
+      reject({
+        status: xhr.status,
+        statusText: xhr.statusText,
+      });
+    };
+    xhr.crossDomain = true;
+    xhr.withCredentials = false;
+    xhr.send();
+  });
 }
 
-function createHTMLExport(jsonComputedCards, bckHTMLCardInfo, bchkHTMLInlineImages, css, templateURL, bExportCustomFields) {
+function createHTMLExport(
+  jsonComputedCards,
+  bckHTMLCardInfo,
+  bchkHTMLInlineImages,
+  css,
+  templateURL,
+  bExportCustomFields,
+) {
+  if (!templateURL) {
+    templateURL = chrome.runtime.getURL("/templates/html.twig");
+    console.log("using default templateURL: " + templateURL);
+  } else {
+    // get css from availableTwigTemplates
+    for (var t = 0; t < availableTwigTemplates.length; t++) {
+      if (availableTwigTemplates[t].url === templateURL)
+        if (availableTwigTemplates[t].css) css = availableTwigTemplates[t].css;
+    }
+  }
 
-    if (!templateURL) {
-        templateURL = chrome.runtime.getURL('/templates/html.twig');
-        console.log('using default templateURL: ' + templateURL);
+  if (css === undefined || css === "" || css === null) {
+    css = chrome.runtime.getURL("/templates/default.css"); // 'https://trapias.github.io/assets/TrelloExport/default.css';
+  }
+  console.log("createHTMLExport css: " + css + ", templateURL: " + templateURL);
+
+  var renderDATA = {
+    renderSettings: {
+      CSS: css,
+      language: window.navigator.userLanguage || window.navigator.language,
+    },
+    cards: jsonComputedCards,
+  };
+  // console.log('renderDATA:' + JSON.stringify(renderDATA));
+
+  // automatically link Digital Object Identifier numbers to their URL
+  Twig.extendFilter("linkdoi", function (value) {
+    // var pattern = /(10[.][0-9]{4,}(?:[.][0-9]+)*\/(?:(?!["&\'<>])\S)+)/g;
+    // var pattern = /(10[.][0-9]{4,}(?:[.][0-9]+)*\/(?:(?!["&\'<>])\S)+[^\s<>.'"$])/g;
+    var pattern =
+      /[^//><](10[.][0-9]{4,}(?:[.][0-9]+)*\/(?:(?!["&\'<>])\S)+[^\s<>.'"$])/g;
+    var matches = value.match(pattern);
+    if (matches) {
+      var result = "";
+      for (var m = 0; m < matches.length; m++) {
+        result = value.replace(
+          pattern,
+          '<a target="_blank" href="http://doi.org/$1">$1</a>',
+        );
+      }
+      return result;
     } else {
-        // get css from availableTwigTemplates
-        for (var t = 0; t < availableTwigTemplates.length; t++) {
-            if (availableTwigTemplates[t].url === templateURL)
-                if (availableTwigTemplates[t].css)
-                    css = availableTwigTemplates[t].css;
-        }
+      return value;
     }
+  });
 
-    if (css === undefined || css === '' || css === null) {
-        css = chrome.runtime.getURL('/templates/default.css'); // 'https://trapias.github.io/assets/TrelloExport/default.css';
-    }
-    console.log('createHTMLExport css: ' + css + ', templateURL: ' + templateURL);
+  loadTemplate(templateURL).then(
+    function (sTpl) {
+      var template = Twig.twig({
+        data: sTpl,
+      });
+      var htmlBody = template.render({ data: renderDATA });
+      var now = new Date();
+      var fileName =
+        "TrelloExport_" +
+        now.getFullYear() +
+        dd(now.getMonth() + 1) +
+        dd(now.getUTCDate()) +
+        dd(now.getHours()) +
+        dd(now.getMinutes()) +
+        dd(now.getSeconds()) +
+        ".html";
 
-    var renderDATA = {
-        renderSettings: { 'CSS': css, 'language': (window.navigator.userLanguage || window.navigator.language) },
-        cards: jsonComputedCards
-    };
-    // console.log('renderDATA:' + JSON.stringify(renderDATA));
+      // issue #83: pass the HTML string directly to the Blob (as the Markdown/CSV exports do).
+      // Using s2ab() here truncated every character to a single byte (charCodeAt & 0xFF),
+      // mangling all non-ASCII/UTF-8 characters even though the file is declared as charset=utf-8.
+      saveAs(
+        new Blob([htmlBody], {
+          type: "text/html;charset=utf-8",
+        }),
+        fileName,
+      );
 
-    // automatically link Digital Object Identifier numbers to their URL
-    Twig.extendFilter("linkdoi", function(value) {
-        // var pattern = /(10[.][0-9]{4,}(?:[.][0-9]+)*\/(?:(?!["&\'<>])\S)+)/g;
-        // var pattern = /(10[.][0-9]{4,}(?:[.][0-9]+)*\/(?:(?!["&\'<>])\S)+[^\s<>.'"$])/g;
-        var pattern = /[^//><](10[.][0-9]{4,}(?:[.][0-9]+)*\/(?:(?!["&\'<>])\S)+[^\s<>.'"$])/g;
-        var matches = value.match(pattern);
-        if (matches) {
-            var result = '';
-            for (var m = 0; m < matches.length; m++) {
-                result = value.replace(pattern, '<a target="_blank" href="http://doi.org/$1">$1</a>');
-            }
-            return result;
-        } else {
-            return value;
-        }
-    });
+      console.log("Done exporting " + fileName);
 
-    loadTemplate(templateURL).then(function(sTpl) {
-        var template = Twig.twig({
-            data: sTpl
-        });
-        var htmlBody = template.render({ data: renderDATA });
-        var now = new Date();
-        var fileName = "TrelloExport_" + now.getFullYear() + dd(now.getMonth() + 1) + dd(now.getUTCDate()) + dd(now.getHours()) + dd(now.getMinutes()) + dd(now.getSeconds()) + ".html";
-
-        saveAs(new Blob([s2ab(htmlBody)], {
-            type: "text/html;charset=utf-8"
-        }), fileName);
-
-        console.log('Done exporting ' + fileName);
-
-        $.growl.notice({
-            title: "TrelloExport",
-            message: 'Done. Downloading HTML file ' + fileName,
-            fixed: false
-        });
-
-    }, function(err) {
-        console.error(err);
-    });
+      $.growl.notice({
+        title: "TrelloExport",
+        message: "Done. Downloading HTML file " + fileName,
+        fixed: false,
+      });
+    },
+    function (err) {
+      console.error(err);
+    },
+  );
 }
 
 function createOPMLExport(jsonComputedCards, bExportCustomFields) {
+  var now = new Date();
+  var sXML = '<?xml version="1.0" encoding="utf-8"?><opml version="1.0">';
+  sXML +=
+    "<head><title>TrelloExport</title><dateCreated>" +
+    now.toISOString() +
+    "</dateCreated></head><body>";
 
-    var now = new Date();
-    var sXML = '<?xml version="1.0" encoding="utf-8"?><opml version="1.0">';
-    sXML += '<head><title>TrelloExport</title><dateCreated>' + now.toISOString() + '</dateCreated></head><body>';
+  var prevBoard = null,
+    prevList = null,
+    description = null;
 
-    var prevBoard = null,
-        prevList = null,
-        description = null;
+  // loop jsonComputedCards
+  jsonComputedCards.forEach(function (card) {
+    if (prevBoard !== card.boardName) {
+      if (prevBoard !== null) {
+        sXML += "</outline>";
+      }
+      // add board
+      sXML += '<outline text="' + escape4XML(card.boardName.trim()) + '">';
+      prevBoard = card.boardName;
+    }
 
-    // loop jsonComputedCards
-    jsonComputedCards.forEach(function(card) {
+    if (prevList !== card.listName) {
+      if (prevList !== null) {
+        sXML += "</outline>";
+      }
+      // add list
+      sXML += '<outline text="' + escape4XML(card.listName.trim()) + '">';
+      prevList = card.listName;
+    }
 
-        if (prevBoard !== card.boardName) {
-            if (prevBoard !== null) {
-                sXML += '</outline>';
-            }
-            // add board
-            sXML += '<outline text="' + escape4XML(card.boardName.trim()) + '">';
-            prevBoard = card.boardName;
+    // std is description, omnioutliner uses _note
+    sXML +=
+      '<outline text="' +
+      escape4XML(card.title.trim()) +
+      '" _note="' +
+      escape4XML(card.cardDescription) +
+      '" created="' +
+      card.datetimeCreated +
+      '" createdBy="' +
+      card.memberCreator +
+      '"' +
+      (card.due !== ""
+        ? ' due="' +
+          new Date(card.due).toLocaleDateString() +
+          " " +
+          new Date(card.due).toLocaleTimeString() +
+          '"'
+        : "") +
+      (card.datetimeDone !== ""
+        ? ' completed="' + card.datetimeDone + '"'
+        : "") +
+      (card.memberDone !== "" ? ' completedBy="' + card.memberDone + '"' : "") +
+      (card.completionTimeText !== ""
+        ? ' elapse="' + card.completionTimeText + '"'
+        : "") +
+      ">";
+
+    // checklists
+    var i;
+    if (card.jsonCheckLists.length > 0) {
+      sXML += '<outline text="Checklists">';
+      for (i = 0; i < card.jsonCheckLists.length; i++) {
+        sXML += '<outline text="' + card.jsonCheckLists[i].name + '">';
+        for (var ii = 0; ii < card.jsonCheckLists[i].items.length; ii++) {
+          if (card.jsonCheckLists[i].items[ii].completed === true) {
+            sXML +=
+              '<outline text="' +
+              "[x] " +
+              card.jsonCheckLists[i].items[ii].name +
+              " " +
+              card.jsonCheckLists[i].items[ii].completedDate +
+              '" completedBy="' +
+              card.jsonCheckLists[i].items[ii].completedBy +
+              '"></outline>';
+          } else {
+            sXML +=
+              '<outline text="' +
+              "[ ] " +
+              card.jsonCheckLists[i].items[ii].name +
+              '"></outline>';
+          }
         }
+        sXML += "</outline>";
+      }
+      sXML += "</outline>";
+    }
 
-        if (prevList !== card.listName) {
-            if (prevList !== null) {
-                sXML += '</outline>';
-            }
-            // add list
-            sXML += '<outline text="' + escape4XML(card.listName.trim()) + '">';
-            prevList = card.listName;
+    // comments
+    if (card.jsonComments.length > 0) {
+      sXML += '<outline text="Comments">';
+      for (i = 0; i < card.jsonComments.length; i++) {
+        var d = card.jsonComments[i].date;
+        if (d) {
+          sXML +=
+            '<outline text="' +
+            escape4XML(card.jsonComments[i].text) +
+            '" created="' +
+            d +
+            (card.jsonComments[i].memberCreator !== null
+              ? '" createdBy="' +
+                escape4XML(card.jsonComments[i].memberCreator.fullName)
+              : "") +
+            '"></outline>';
         }
+      }
+      sXML += "</outline>";
+    }
 
-        // std is description, omnioutliner uses _note
-        sXML += '<outline text="' + escape4XML(card.title.trim()) + '" _note="' + escape4XML(card.cardDescription) + '" created="' + card.datetimeCreated + '" createdBy="' + card.memberCreator + '"' +
-            (card.due !== '' ? ' due="' + new Date(card.due).toLocaleDateString() + ' ' + new Date(card.due).toLocaleTimeString() + '"' : '') +
-            (card.datetimeDone !== '' ? ' completed="' + card.datetimeDone + '"' : '') +
-            (card.memberDone !== '' ? ' completedBy="' + card.memberDone + '"' : '') +
-            (card.completionTimeText !== '' ? ' elapse="' + card.completionTimeText + '"' : '') +
-            '>';
+    // attachments
+    if (card.jsonAttachments.length > 0) {
+      sXML += '<outline text="Attachments">';
+      for (i = 0; i < card.jsonAttachments.length; i++) {
+        sXML +=
+          '<outline text="' +
+          escape4XML(card.jsonAttachments[i].name) +
+          '" size="' +
+          Number(card.jsonAttachments[i].bytes / 1024).toFixed(2) +
+          ' kb" url="' +
+          escape4XML(card.jsonAttachments[i].url) +
+          '"></outline>';
+      }
+      sXML += "</outline>";
+    }
 
-        // checklists
-        var i;
-        if (card.jsonCheckLists.length > 0) {
-            sXML += '<outline text="Checklists">';
-            for (i = 0; i < card.jsonCheckLists.length; i++) {
-                sXML += '<outline text="' + card.jsonCheckLists[i].name + '">';
-                for (var ii = 0; ii < card.jsonCheckLists[i].items.length; ii++) {
-                    if (card.jsonCheckLists[i].items[ii].completed === true) {
-                        sXML += '<outline text="' + '[x] ' + card.jsonCheckLists[i].items[ii].name + ' ' + card.jsonCheckLists[i].items[ii].completedDate + '" completedBy="' + card.jsonCheckLists[i].items[ii].completedBy + '"></outline>';
-                    } else {
-                        sXML += '<outline text="' + '[ ] ' + card.jsonCheckLists[i].items[ii].name + '"></outline>';
-                    }
-                }
-                sXML += '</outline>';
-            }
-            sXML += '</outline>';
-        }
+    sXML += "</outline>";
+  });
 
-        // comments
-        if (card.jsonComments.length > 0) {
-            sXML += '<outline text="Comments">';
-            for (i = 0; i < card.jsonComments.length; i++) {
-                var d = card.jsonComments[i].date;
-                if (d) {
-                    sXML += '<outline text="' + escape4XML(card.jsonComments[i].text) + '" created="' + d  + ( card.jsonComments[i].memberCreator !== null ? '" createdBy="' + escape4XML(card.jsonComments[i].memberCreator.fullName) : '' ) + '"></outline>';
-                }
-            }
-            sXML += '</outline>';
-        }
+  sXML += "</outline></outline>";
+  sXML += "</body></opml>";
 
-        // attachments
-        if (card.jsonAttachments.length > 0) {
-            sXML += '<outline text="Attachments">';
-            for (i = 0; i < card.jsonAttachments.length; i++) {
-                sXML += '<outline text="' + escape4XML(card.jsonAttachments[i].name) + '" size="' + Number(card.jsonAttachments[i].bytes / 1024).toFixed(2) + ' kb" url="' + escape4XML(card.jsonAttachments[i].url) + '"></outline>';
-            }
-            sXML += '</outline>';
-        }
+  var oParser = new DOMParser();
+  var oDOM = oParser.parseFromString(sXML, "text/xml");
 
-        sXML += '</outline>';
-    });
+  var s = new XMLSerializer();
+  var opml = s.serializeToString(oDOM);
+  // console.log('OPML: ' + opml);
 
-    sXML += '</outline></outline>';
-    sXML += '</body></opml>';
+  var fileName =
+    "TrelloExport_" +
+    now.getFullYear() +
+    dd(now.getMonth() + 1) +
+    dd(now.getUTCDate()) +
+    dd(now.getHours()) +
+    dd(now.getMinutes()) +
+    dd(now.getSeconds()) +
+    ".opml";
 
-    var oParser = new DOMParser();
-    var oDOM = oParser.parseFromString(sXML, "text/xml");
+  saveAs(
+    new Blob([opml], {
+      type: "text/xml;charset=utf-8",
+    }),
+    fileName,
+  );
 
-    var s = new XMLSerializer();
-    var opml = s.serializeToString(oDOM);
-    // console.log('OPML: ' + opml);
+  console.log("Done exporting " + fileName);
 
-    var fileName = "TrelloExport_" + now.getFullYear() + dd(now.getMonth() + 1) + dd(now.getUTCDate()) + dd(now.getHours()) + dd(now.getMinutes()) + dd(now.getSeconds()) + ".opml";
-
-    saveAs(new Blob([opml], {
-        type: "text/xml;charset=utf-8"
-    }), fileName);
-
-    console.log('Done exporting ' + fileName);
-
-    $.growl.notice({
-        title: "TrelloExport",
-        message: 'Done. Downloading OPML file ' + fileName,
-        fixed: false
-    });
+  $.growl.notice({
+    title: "TrelloExport",
+    message: "Done. Downloading OPML file " + fileName,
+    fixed: false,
+  });
 }
 
 // Async version of loadData function with retry logic and rate limiting
-async function loadDataAsync(exportFormat, bexportArchived, bExportComments, bExportChecklists, bExportAttachments, iExcelItemsAsRows, bckHTMLCardInfo, bchkHTMLInlineImages, allColumns, selectedColumns, css, filterMode, bExportCustomFields, templateURL, chkANDORFilter) {
-    console.log('TrelloExport loading data ASYNC, export format: ' + exportFormat);
-    
-    try {
-        await loadData(exportFormat, bexportArchived, bExportComments, bExportChecklists, bExportAttachments, iExcelItemsAsRows, bckHTMLCardInfo, bchkHTMLInlineImages, allColumns, selectedColumns, css, filterMode, bExportCustomFields, templateURL, chkANDORFilter);
-        
-    } catch (error) {
-        console.error('loadDataAsync error:', error);
-        throw error;
-    }
+async function loadDataAsync(
+  exportFormat,
+  bexportArchived,
+  bExportComments,
+  bExportChecklists,
+  bExportAttachments,
+  iExcelItemsAsRows,
+  bckHTMLCardInfo,
+  bchkHTMLInlineImages,
+  allColumns,
+  selectedColumns,
+  css,
+  filterMode,
+  bExportCustomFields,
+  templateURL,
+  chkANDORFilter,
+) {
+  console.log(
+    "TrelloExport loading data ASYNC, export format: " + exportFormat,
+  );
+
+  try {
+    await loadData(
+      exportFormat,
+      bexportArchived,
+      bExportComments,
+      bExportChecklists,
+      bExportAttachments,
+      iExcelItemsAsRows,
+      bckHTMLCardInfo,
+      bchkHTMLInlineImages,
+      allColumns,
+      selectedColumns,
+      css,
+      filterMode,
+      bExportCustomFields,
+      templateURL,
+      chkANDORFilter,
+    );
+  } catch (error) {
+    console.error("loadDataAsync error:", error);
+    throw error;
+  }
 }

@@ -20,6 +20,10 @@ If you cannot find a solution, or would like some new feature to be implemented,
 
 ## Release history
 
+### Version 1.9.83
+- fix issue 83 (charset for HTML export)
+- update HTML template-set and load from https://www.trapias.it/assets/TrelloExport/templates.json
+
 ### Version 1.9.82
 - fix error 403 in loading many cards: added automatic retry with exponential backoff for 403 errors
 - optimize API requests: only request checklists/attachments/comments when needed based on selected columns
